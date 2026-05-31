@@ -1,0 +1,54 @@
+### main
+
+every c++ executale starts from a ducntioncal called main
+
+the OS calls main when your program starts
+
+#include tells the compiler to pull in declarations from another file
+
+you ise it when code in one fuile needs to know about code declared elsewhere
+
+### header file such as Applications.hpp usually contains declarations
+
+A declaration tells the compiler that something exists
+
+ex:
+
+
+class Application; --> this says that a class namesd Application exists
+
+##source file
+
+A source file such as Application.cpp usually contains definitions 
+
+a definition is the actual implementation
+
+##Class
+A class is a user-defined type
+
+it lets you group behaviour and data together
+
+For this project, Application will represent the program itself
+
+###namespace 
+
+A namespace prevents name collisions
+
+If many libraries all define Application, the compiler needs a way to distinguish them. 
+
+So we put our code inside a namespace such as rubiksim
+
+### public
+
+a class can restrict access to its members
+
+public means code outside the class is allowed to use those members
+
+### return 0
+
+Returning 0 from main means the program finished successfully. Non zero values usually mean some kind of error
+
+### Write this file first: CMakeLists.txt
+
+Type this exactly:
+

@@ -1,0 +1,3 @@
+/Users/mderaznasr/Documents/GitHub/RubikSim/build/CMakeFiles/rubiksim.dir
+/Users/mderaznasr/Documents/GitHub/RubikSim/build/CMakeFiles/edit_cache.dir
+/Users/mderaznasr/Documents/GitHub/RubikSim/build/CMakeFiles/rebuild_cache.dir
