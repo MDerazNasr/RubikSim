@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/rubiksim.dir/src/main.cpp.o CMakeFiles/rubiksim.dir/src/app/Application.cpp.o -o rubiksim

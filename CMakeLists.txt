@@ -13,9 +13,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# loads cmakes FetchContent module
 include(FetchContent)
-
-include(FetchContent)
+# describes a dependancy
 FetchContent_Declare(
     glfw
     GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -23,7 +23,8 @@ FetchContent_Declare(
 )
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TEST OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+# means do not build documenatation 
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(glfw)
@@ -40,5 +41,4 @@ target_include_directories(rubiksim PRIVATE src)
 target_link_libraries(rubiksim PRIVATE glfw)
 
 #this is why we can write include... insetad of a longer path
-
 
