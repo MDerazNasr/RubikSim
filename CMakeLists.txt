@@ -28,6 +28,9 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(glfw)
+
+find_package(OpenGL REQUIRED)
+
 # creates executable target for RubikSim - a target is something cmake knows how to build - inside the brackets you list the source files that belong to that executable
 add_executable(rubiksim
   src/main.cpp
@@ -38,7 +41,7 @@ add_executable(rubiksim
 # PRIVATE means this incklude path is only needed to build this target
 target_include_directories(rubiksim PRIVATE src)
 
-target_link_libraries(rubiksim PRIVATE glfw)
+target_compile_definitions(rubiksim PRIVATE GL_SILENCE_DEPRECATION)
+target_link_libraries(rubiksim PRIVATE glfw OpenGL::GL)
 
 #this is why we can write include... insetad of a longer path
-
