@@ -20,23 +20,22 @@ public:
   // which runs automatically when an obj is destroyed
   // for this project the destrcutor will clean up the window and GLFW
   ~Application();
+  int run();
+
+private:
+  void createTriangleResources();
+  void destroyTriangleResources();
+
+  GLFWwindow *window_;
+  // unsigned int means non negative integer
+  // openGL gives many resources int ids. rhese ids are not the resource itself
+  // vBuffer and stored vbo id and vArray stores the vao ids
+  // shaderProgram_ stores shader program ids
+  unsigned int vertexArray_;
+  unsigned int vertexBuffer_;
+  unsigned int shaderProgram_;
 
   Application(const Application &) = delete;
   Application &operator=(const Application &) = delete;
-
-  // This declares a member function
-  /*
-   * int run(); is not marked a const
-   * coz rhe application loop will inberact with the window and application
-   * state a const pormises not to modify the obj whidch is too strict for the
-   * real app loop
-   */
-  int run();
-
-  // means code outside tthe class cannot directly access what come after it
-private:
-  // * stores a pointer to the glfw window, a pointer stores a memory address
-  // window_ is the variable name
-  GLFWwindow *window_;
 };
 } // namespace rubiksim

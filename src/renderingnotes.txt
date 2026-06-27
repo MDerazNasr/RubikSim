@@ -1,0 +1,28 @@
+VBO means vertex COntext Bufefr - 
+
+a vbo is gpu memory that stores vertex data
+
+the cpp program starts with data is cpu memory. openlg copuies that dat into gpu memory
+
+VAO - vertex array object
+
+a vao rmemers how vertex data is l;aid out
+
+the vbo stores he rarw numbers and the vao staores the inetrpreewtation of those numbers
+
+for example:
+
+    every vertext has 3 floats
+    those 3 floats mean position
+
+
+SHADER - a small program that runs on the gpu
+
+we need 2 shaders for this program:
+1. vertex shaders
+2. fragment shaders
+
+The vertex shader decides where vertices go.
+The fragment shader decides what color pixels become
+
+ e
