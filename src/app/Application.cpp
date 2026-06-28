@@ -6,7 +6,8 @@
 #include <iostream>
 #include <stdexcept>
 // give this source file access rto glfw functions
-#include <GLFW/glfw3.h>
+// #include <GLFW/glfw3.h>
+#define GLFW_INCLUDE_GLCOREARB
 #include <OpenGL/gl3.h>
 
 // anonymous namesce means these helper functions are only visible inside this
