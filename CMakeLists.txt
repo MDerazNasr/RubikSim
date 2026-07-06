@@ -21,13 +21,18 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/glfw/glfw.git
     GIT_TAG 3.4
 )
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.1
+)
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 # means do not build documenatation 
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(glfw)
+FetchContent_MakeAvailable(glfw glm)
 
 find_package(OpenGL REQUIRED)
 
@@ -35,6 +40,7 @@ find_package(OpenGL REQUIRED)
 add_executable(rubiksim
   src/main.cpp
   src/app/Application.cpp
+  src/renderer/Mesh.cpp
 )
 
 # this tells the compiler where it can search for header files
@@ -42,6 +48,6 @@ add_executable(rubiksim
 target_include_directories(rubiksim PRIVATE src)
 
 target_compile_definitions(rubiksim PRIVATE GL_SILENCE_DEPRECATION)
-target_link_libraries(rubiksim PRIVATE glfw OpenGL::GL)
+target_link_libraries(rubiksim PRIVATE glfw glm::glm OpenGL::GL)
 
 #this is why we can write include... insetad of a longer path
