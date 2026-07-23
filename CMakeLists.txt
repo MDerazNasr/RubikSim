@@ -37,10 +37,11 @@ FetchContent_MakeAvailable(glfw glm)
 find_package(OpenGL REQUIRED)
 
 # creates executable target for RubikSim - a target is something cmake knows how to build - inside the brackets you list the source files that belong to that executable
-add_executable(rubiksim
-  src/main.cpp
-  src/app/Application.cpp
-  src/renderer/Mesh.cpp
+# a cpp fike must be part of the build if you want its function def linked to the final executable
+add_executable(rubiksim #creates the program with that name
+  src/main.cpp #contains main
+  src/app/Application.cpp #contains application fucntions def
+  src/renderer/Mesh.cpp #constains mesh function def
 )
 
 # this tells the compiler where it can search for header files
