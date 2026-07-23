@@ -1,0 +1,100 @@
+  ## C++ Concepts In The Header
+
+  #pragma once
+
+  This prevents the same header from being included multiple times in one
+  translation unit.
+
+  A translation unit is roughly one .cpp file after all its #include files have
+  been pasted into it by the preprocessor.
+
+  #include <vector>
+
+  This gives access to std::vector.
+
+  std::vector<T> is a dynamic array. Dynamic means it can hold a size known at
+  runtime, not only at compile time.
+
+  namespace rubiksim
+
+  A namespace groups names and prevents collisions.
+
+  struct Vertex
+
+  A struct is almost the same as a class, except its members are public by
+  default.
+
+  We use struct for simple data objects.
+
+  float
+
+  A 32 bit decimal number.
+
+  Graphics APIs commonly use float because GPUs are optimized for it.
+
+  class Mesh
+
+  A class groups data and behavior.
+
+  We use class here because Mesh owns resources and must control how those
+  resources are created, moved, and destroyed.
+
+  public
+
+  The public interface of the class.
+
+  Other code can construct, destroy, move, and draw a Mesh.
+
+  private
+
+  The internal implementation.
+
+  Other code should not directly change OpenGL IDs.
+
+  const std::vector<Vertex>&
+
+  Read this right to left:
+
+  vertices is a reference to a vector of Vertex objects.
+
+  & means reference.
+
+  A reference is another name for an existing object.
+
+  Without &, the whole vector would be copied.
+
+  const means this function promises not to modify that vector.
+
+  unsigned int
+
+  A non negative integer.
+
+  OpenGL object handles are represented by unsigned integers.
+
+  = delete
+
+  This tells C++ to forbid a function.
+
+  We delete copy construction and copy assignment because copying OpenGL handles
+  would create two C++ objects that both think they own the same GPU resource.
+
+  Mesh&&
+
+  This is an rvalue reference.
+
+  For now, think of it as “a temporary object we are allowed to steal resources
+  from.”
+
+  This is used for move semantics.
+
+  noexcept
+
+  This promises the function will not throw exceptions.
+
+  Move constructors are commonly marked noexcept because standard containers
+  prefer safe moves.
+
+  void
+
+  The function returns nothing.
+
