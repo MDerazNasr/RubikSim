@@ -3,7 +3,9 @@
 
 #define GLFW_INCLUDE_GLCOREARB
 #include <GLFW/glfw3.h>
-#include <cstddef>
+#include <cstddef> //provides offsetof function
+offsetof(Vertex, x)
+
 
 namespace rubiksim {
 // defines the constructor declared in the header
@@ -20,8 +22,10 @@ Mesh::Mesh(const std::vector<Vertex> &vertices, const std::vector<unsigned> &ind
       indexBuffer_(0),
       indexCount_(static_cast<unsigned int>(indices.size())) 
     {
-        //
+        //creates 1 VAO (1 means create one object)
+        //&vertexArray_means pass the address where opengl should write the generated ID
         glGenVertexArrays(1, &vertexArray_);
+        // creates 1 VBO
         glGenBuffers(1, $vertexBuffer_);
         glGenBuffers(1, &indexBuffer_);
 
@@ -66,6 +70,44 @@ Mesh::Mesh(const std::vector<Vertex> &vertices, const std::vector<unsigned> &ind
         other.indexBuffer_ = 0;
         other.indexCount_ = 0;
     }
+
+    Mesh& Mesh::operator=(Mesh&& other) noexcept {
+        if (this != &other) {
+            destroy();
+
+            other.vertexArray_ = 0;
+            other.vertexBuffer_ = 0;
+            other.indexBuffer_ = 0;
+            other.indexCount_ = 0;
+
+        }
+        return *this;
+    }
+
+    void Mesh::draw() const {
+        glBindVertexArray(vertexArray_);
+        glDrawElements(GL_TRIANGLES, static_cast<int>(indexCount_), GL_UNSIGNED_INT, nullptr);
+    }
+
+    void::Mesh::destroy() {
+        if (indexBuffer_ != 0) {
+            glDeleteBuffers(1, &indexBuffer_);
+            indexBuffer_ = 0;
+        }
+
+        if (vertexBuffer_ != 0){
+            glDeleteBuffers(1, &vertexBuffer_);
+            vertexBuffer_ = 0;
+        }
+
+        if (vertexArray_ != 0){
+            glDeleteBuffers(1, &vertexArray_);
+            vertexArray_ = 0;
+        }
+
+        indexCount_ = 0;
+    }
+    
         
 
 } // namespace rubiksim
