@@ -40,21 +40,32 @@ unsigned int createShaderProgram() {
   const char *vertexShaderSource =
       "#version 330 core\n"
       "layout (location = 0) in vec3 position;\n"
+      // the vertex shader nbow accpet sa second vertex attrib
+      "layout (location = 1) in vec3 color;\n"
       // uniform means a val sendf from cpp to the shader
       // mat4 means a 4x4 matrix
       // model is the name of the matrix
       // model * vec4 transforms the vertex pis before drawing it
       "uniform mat4 model;\n"
+      // the vertex shader sends color to the fragment shader
+      "out vec3 vertexColor;\n"
       "void main()\n"
       "{\n"
+      "vertexColor = color;\n"
       " gl_Position = model * vec4(position, 1.0);\n"
       "}\n";
   const char *fragmentShaderSource =
       "#version 330 core\n"
-      "out vec4 color;\n"
+      // The fragment shader recieves interpolated color
+      // Interpolation is a mathematical and computational method of estimating
+      // unknown values that fall between known data points.
+
+      "in vec3 vertexColor;\n"
+      "out vec4 fragmentColor;\n"
       "void main()\n"
       "{\n"
-      " color = vec4(0.85, 0.20, 0.15, 1.0);\n"
+      // " color = vec4(0.85, 0.20, 0.15, 1.0);\n"
+      " fragmentColor = vec4(vertexColor, 1.0);\n"
       "}\n";
 
   const unsigned int vertexShader =
