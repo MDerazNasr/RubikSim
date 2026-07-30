@@ -25,8 +25,8 @@ public:
   int run();
 
 private:
-  void createTriangleResources();
-  void destroyTriangleResources();
+  void createSquareResources();
+  void destroySquareResources();
 
   GLFWwindow *window_;
   // unsigned int means non negative integer

@@ -21,7 +21,8 @@ public:
   Mesh(
       // const means the constructor will not modify the vector
       // & means pass by reference, avoiding a copy
-      const std::vector<Vertex> &vertices, const std::<unsigned int> &indices);
+      const std::vector<Vertex> &vertices,
+      const std::vector<unsigned int> &indices);
   ~Mesh(); // this is a destructor for when a mesh obj is destroyed
 
   // Disable copy cuz One OpenGL buffer owner should not be copied

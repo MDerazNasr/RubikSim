@@ -97,7 +97,7 @@ unsigned int createShaderProgram() {
 
 namespace rubiksim {
 Application::Application()
-    : window_(nullptr), vertexArray_(0), vertexBuffer_(0), shaderProgram_(0) {
+    : window_(nullptr), shaderProgram_(0) {
   if (!glfwInit()) {
     throw std::runtime_error("Failed to initialize GLFW");
   }
@@ -120,51 +120,38 @@ Application::Application()
   }
 
   glfwMakeContextCurrent(window_);
-  createTriangleResources();
+  createSquareResources();
 }
 
-void Application::createTriangleResources() {
+void Application::createSquareResources() {
   // creates an array of floating point numbers that cant be modified -- each
   // group of 3 numbers is one vertex
-  const float vertices[] = {0.0F, 0.5F, 0.0F,  -0.5F, -0.5F,
-                            0.0F, 0.5F, -0.5F, 0.0F};
+  // const float vertices[] = {0.0F, 0.5F, 0.0F,  -0.5F, -0.5F,
+  //                           0.0F, 0.5F, -0.5F, 0.0F};
 
+  // the followign is a dynamic array of vertex structs
+  const std::vector<Vertex> vertices = {
+      {-0.5F, 0.5F, 0.0F, 1.0F, 0.2F, 0.2F}, // top left position mostly red
+      {-0.5F, -0.5F, 0.0F, 0.2F, 1.0F,
+       0.2F}, // bottom left position, mostly green
+      {0.5F, -0.5F, 0.0F, 0.2F, 0.2F,
+       1.0F},                              // bottom right position, mostly blue
+      {0.5F, 0.5F, 0.0F, 1.0F, 1.0F, 0.2F} // top right position, mostly yellow
+  };
+
+  // every vertex has 6 floats
+  // x y z r g b
+  // now indices -
+  const std::vector<unsigned int> indices = {
+      0, 1, 2, // first triangle: top left, bottom left, bottom right
+      0, 2, 3  // second triangle: top left, bottom right, top right
+  };
+  // NOTE - a square is made of two triangles because GPUs draw triangles
   shaderProgram_ = createShaderProgram();
-
-  // asks openGL to create onen VAO
-  // means pass the memory address of vertexArray_ so opengl can write the
-  // generated id into it
-  //
-  glGenVertexArrays(1, &vertexArray_);
-  // cretaes one VBO
-  glGenBuffers(1, &vertexBuffer_);
-
-  // makes this VAO active
-  glBindVertexArray(vertexArray_);
-
-  // makes this VBO active as the current vertex data buffer
-  glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer_);
-  // copies your vertex array into gpu memory
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-  // describes the layout of one vertex
-  /*
-   * 0 - shader input location 0
-   * 3 - three vals per vertex
-   * GL Float means each val is a float
-   * gl false means dont normalise the vals
-   * 3 * size(float) means each egrtex is three floats wide
-   * nullptr means the position data stsarst at the start
-   */
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-  // enavles shader input location 0
-  glEnableVertexAttribArray(0);
-
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
+  squareMesh_ = std::make_unique<Mesh>(vertices, indices);
 }
 Application::~Application() {
-  destroyTriangleResources();
+  destroySquareResources();
 
   if (window_) {
     glfwDestroyWindow(window_);
@@ -172,15 +159,15 @@ Application::~Application() {
   glfwTerminate();
 }
 
-void Application::destroyTriangleResources() {
+void Application::destroySquareResources() {
+  // reset destroys the objects insdie the unique_ptr
+  // this calls Mesh::~Mesh()
+  // that destructor deletes the VAO, VBO, & EBO
+  // Then Application del only the shader program
+  squareMesh_.reset();
   if (shaderProgram_) {
     glDeleteProgram(shaderProgram_);
-  }
-  if (vertexBuffer_ != 0) {
-    glDeleteBuffers(1, &vertexBuffer_);
-  }
-  if (vertexArray_ != 0) {
-    glDeleteVertexArrays(1, &vertexArray_);
+    shaderProgram_ = 0;
   }
 }
 
@@ -199,7 +186,6 @@ int Application::run() {
     // activates your shader program
     glUseProgram(shaderProgram_);
     // activates your triangle layout
-    glBindVertexArray(vertexArray_);
 
     // glfwGetTime returns seconds as double. static_cast<float> converts it to
     // float
@@ -220,10 +206,20 @@ int Application::run() {
 
     // upload matrix to gpu
     glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(model));
+    // ask mesh to bind its VAO and issue glDrawElements
+    // -> means acces a memebr through a pointer
+    // squareMesh_- is a std::unique_ptr<Mesh>
+    squareMesh_->draw();
 
-    // tells opengl to draw triangles
-    // gl_triangles means every group of tthree vertcies forms one triangle
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    /*
+     * the line above means:
+     * go to the nesh obj owned by squareMesh_
+     * call its draw function
+     *
+     * you should see:
+     * a rotating square with blended vertex colors
+     * on the same dark blue gray background
+     */
 
     glfwPollEvents();
     glfwSwapBuffers(window_);
