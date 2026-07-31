@@ -223,7 +223,8 @@ int Application::run() {
     // the 4 vals are red, green, blue, alph (opacitya
     glClearColor(0.08F, 0.10F, 0.12F, 1.0F);
     // tells openGL you want to clear only the color part of the frame buffer
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT |
+            GL_DEPTH_BUFFER_BAIT); // Clear color and GL_DEPTH_TES
 
     // activates your shader program
     glUseProgram(shaderProgram_);
@@ -240,31 +241,52 @@ int Application::run() {
     //  glm::mat4(1.0 F) creates an identity matrix which is when it changes
     //  nothing by itself glm..vec3 ... create a 3d vecrtore pointing along the
     //  Z axis
-    const glm::mat4 model =
-        glm::rotate(glm::mat4(1.0F), time, glm::vec3(0.0F, 0.0F, 1.0F));
+    const glm::mat4 model = glm::rotate(
+        glm::mat4(1.0F), time,
+        glm::vec3(0.5F, 1.0F, 0.0F)); // rotate cube around diagonal axis
     // Ask openGL where the shader uniform named model lives
     //  Find model uniform in thw active shader
     const int modelLocation = glGetUniformLocation(shaderProgram_, "model");
+    const glm::mat4 view = glm::translate(
+        glm::mat4(1.0F),
+        glm::vec3(0.0F, 0.0F, -3.0F)) // Move the world away from the camera.
+        const glm::mat4 projection =
+            glm::perspective(glm::radians(45.0F), 800.0F / 600.0F, 0.1F,
+                             100.0F); // Perspective camera lens.
 
     // upload matrix to gpu
-    glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(model));
-    // ask mesh to bind its VAO and issue glDrawElements
-    // -> means acces a memebr through a pointer
-    // cubeMesh_- is a std::unique_ptr<Mesh>
-    CubeMesh_->draw();
+    // ask mesh to   glUniformMatrix4fv(
+      glGetUniformLocation(shaderProgram_, "model"),      // Find model uniform.
+      1,                                                  // Upload one matrix.
+      GL_FALSE,                                           // Do not transpose.
+      glm::value_ptr(model)                               // Raw pointer to
+      matrix floats.
+  );
 
-    /*
-     * the line above means:
-     * go to the nesh obj owned by squareMesh_
-     * call its draw function
-     *
-     * you should see:
-     * a rotating square with blended vertex colors
-     * on the same dark blue gray background
-     */
+      glUniformMatrix4fv(
+          glGetUniformLocation(shaderProgram_, "view"), // Find view uniform.
+          1, GL_FALSE, glm::value_ptr(view));
 
-    glfwPollEvents();
-    glfwSwapBuffers(window_);
+      glUniformMatrix4fv(
+          glGetUniformLocation(shaderProgram_, "projection"), // Find projection
+          uniform.1, GL_FALSE, glm::value_ptr(projection));
+      bind its VAO and issue glDrawElements
+          // -> means acces a memebr through a pointer
+          // cubeMesh_- is a std::unique_ptr<Mesh>
+          cubeMesh_->draw();
+
+      /*
+       * the line above means:
+       * go to the nesh obj owned by squareMesh_
+       * call its draw function
+       *
+       * you should see:
+       * a rotating square with blended vertex colors
+       * on the same dark blue gray background
+       */
+
+      glfwPollEvents();
+      glfwSwapBuffers(window_);
   }
   return 0;
 }
