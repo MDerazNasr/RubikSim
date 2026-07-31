@@ -135,10 +135,12 @@ Application::Application() : window_(nullptr), shaderProgram_(0) {
   // them which makes 3d objects look wrong
   glEnable(GL_DEPTH_TEST); // Enables depth testing so nearer triangles hide
                            // farther triangles
-  createSquareResources();
+  // Create shader and cube mesh after OpenGL context is active
+  createCubeResources();
 }
 
-void Application::createSquareResources() {
+void Application::createCubeResources() {
+  // create shader and cube mesh after openGL cnext is active
   // creates an array of floating point numbers that cant be modified -- each
   // group of 3 numbers is one vertex
   // const float vertices[] = {0.0F, 0.5F, 0.0F,  -0.5F, -0.5F,
@@ -191,7 +193,7 @@ cubeMesh_ = std::make_unique<Mesh>(
  */
 }
 Application::~Application() {
-  destroySquareResources();
+  destroyCubeResources();
 
   if (window_) {
     glfwDestroyWindow(window_);
@@ -199,15 +201,15 @@ Application::~Application() {
   glfwTerminate();
 }
 
-void Application::destroySquareResources() {
+void Application::destroyCubeResources() {
   // reset destroys the objects insdie the unique_ptr
   // this calls Mesh::~Mesh()
   // that destructor deletes the VAO, VBO, & EBO
   // Then Application del only the shader program
-  squareMesh_.reset();
+  cubeMesh_.reset(); // Destroys the Mesh, which delets VAO, VBO and EBO
   if (shaderProgram_) {
-    glDeleteProgram(shaderProgram_);
-    shaderProgram_ = 0;
+    glDeleteProgram(shaderProgram_); // deletes the GPU shader program
+    shaderProgram_ = 0;              // Marks the handle as empty
   }
 }
 
@@ -248,8 +250,8 @@ int Application::run() {
     glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(model));
     // ask mesh to bind its VAO and issue glDrawElements
     // -> means acces a memebr through a pointer
-    // squareMesh_- is a std::unique_ptr<Mesh>
-    squareMesh_->draw();
+    // cubeMesh_- is a std::unique_ptr<Mesh>
+    CubeMesh_->draw();
 
     /*
      * the line above means:
