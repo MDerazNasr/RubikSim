@@ -146,24 +146,49 @@ void Application::createSquareResources() {
 
   // the followign is a dynamic array of vertex structs
   const std::vector<Vertex> vertices = {
-      {-0.5F, 0.5F, 0.0F, 1.0F, 0.2F, 0.2F}, // top left position mostly red
-      {-0.5F, -0.5F, 0.0F, 0.2F, 1.0F,
-       0.2F}, // bottom left position, mostly green
-      {0.5F, -0.5F, 0.0F, 0.2F, 0.2F,
-       1.0F},                              // bottom right position, mostly blue
-      {0.5F, 0.5F, 0.0F, 1.0F, 1.0F, 0.2F} // top right position, mostly yellow
+      {-0.5F, -0.5F, -0.5F, 1.0F, 0.0F, 0.0F}, // 0 back bottom left, red.
+      {0.5F, -0.5F, -0.5F, 0.0F, 1.0F, 0.0F},  // 1 back bottom right, green.
+      {0.5F, 0.5F, -0.5F, 0.0F, 0.0F, 1.0F},   // 2 back top right, blue.
+      {-0.5F, 0.5F, -0.5F, 1.0F, 1.0F, 0.0F},  // 3 back top left, yellow.
+      {-0.5F, -0.5F, 0.5F, 1.0F, 0.0F, 1.0F},  // 4 front bottom left,magenta.
+      {0.5F, -0.5F, 0.5F, 0.0F, 1.0F, 1.0F},   // 5 front bottom right, cyan.
+      {0.5F, 0.5F, 0.5F, 1.0F, 1.0F, 1.0F},    // 6 front top right, white.
+      {-0.5F, 0.5F, 0.5F, 1.0F, 0.5F, 0.0F}    // 7 front top left, orange.
   };
 
   // every vertex has 6 floats
   // x y z r g b
   // now indices -
   const std::vector<unsigned int> indices = {
-      0, 1, 2, // first triangle: top left, bottom left, bottom right
-      0, 2, 3  // second triangle: top left, bottom right, top right
+      4, 5, 6, 4, 6, 7, // Front face.
+      1, 0, 3, 1, 3, 2, // Back face.
+      0, 4, 7, 0, 7, 3, // Left face.
+      5, 1, 2, 5, 2, 6, // Right face.
+      3, 7, 6, 3, 6, 2, // Top face.
+      0, 1, 5, 0, 5, 4  // Bottom face.
   };
-  // NOTE - a square is made of two triangles because GPUs draw triangles
-  shaderProgram_ = createShaderProgram();
-  squareMesh_ = std::make_unique<Mesh>(vertices, indices);
+};
+// NOTE - a square is made of two triangles because GPUs draw triangles
+shaderProgram_ = createShaderProgram();
+cubeMesh_ = std::make_unique<Mesh>(
+    vertices, indices); // Allocate a Mesh owned by unique_ptr
+/*
+ *  Important C++ syntax:
+
+  std::vector<Vertex> is a dynamic array of Vertex.
+
+  Each {...} inside the vector creates one Vertex.
+
+  Each vertex has:
+
+  x y z r g b
+
+  The cube has 8 corner vertices.
+
+  The index list has 36 indices because:
+
+  6 faces * 2 triangles per face * 3 vertices per triangle = 36 indices
+ */
 }
 Application::~Application() {
   destroySquareResources();
