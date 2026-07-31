@@ -38,6 +38,7 @@ unsigned int compileShader(unsigned int type, const char *source) {
 
 unsigned int createShaderProgram() {
   const char *vertexShaderSource =
+      // uses glsl version matching opengl 3.3 core
       "#version 330 core\n"
       "layout (location = 0) in vec3 position;\n"
       // the vertex shader nbow accpet sa second vertex attrib
@@ -96,8 +97,7 @@ unsigned int createShaderProgram() {
 } // namespace
 
 namespace rubiksim {
-Application::Application()
-    : window_(nullptr), shaderProgram_(0) {
+Application::Application() : window_(nullptr), shaderProgram_(0) {
   if (!glfwInit()) {
     throw std::runtime_error("Failed to initialize GLFW");
   }
@@ -119,7 +119,14 @@ Application::Application()
     throw std::runtime_error("Failed to create GLFW window");
   }
 
-  glfwMakeContextCurrent(window_);
+  glfwMakeContextCurrent(window_); // makes this windows opengl context active
+  // glEnable turns on an opengl capability
+  // GL_DEPTH_TEST means opengl should track how far each pixel is from the
+  // camera
+  // wihtout depth tetsing triangles re drawn mostly in the order you submit
+  // them which makes 3d objects look wrong
+  glEnable(GL_DEPTH_TEST); // Enables depth testing so nearer triangles hide
+                           // farther triangles
   createSquareResources();
 }
 
