@@ -25,15 +25,15 @@ public:
   int run();
 
 private:
-  void createSquareResources();
-  void destroySquareResources();
+  void createCubeResources();
+  void destroyCubeResources();
 
   GLFWwindow *window_;
   // unsigned int means non negative integer
   // openGL gives many resources int ids. rhese ids are not the resource itself
   // vBuffer and stored vbo id and vArray stores the vao ids
   // shaderProgram_ stores shader program ids
-  std::unique_ptr<Mesh> squareMesh_;
+  std::unique_ptr<Mesh> cubeMesh_;
   unsigned int shaderProgram_;
 
   Application(const Application &) = delete;

@@ -49,12 +49,20 @@ unsigned int createShaderProgram() {
       // model * vec4 transforms the vertex pis before drawing it
       "uniform mat4 model;\n"
       // the vertex shader sends color to the fragment shader
-      "out vec3 vertexColor;\n"
+      "uniform mat4 view;\n" // camera transforms world space to camera space
+      // projection * view * model
+      // model moves the cube into the world
+      // view moves the world relative to the camera
+      // projection turns 3D coordinates into screen coordinates
+      "uniform mat4 projection;\n" // projecttion transforms 3d camera space to
+                                   // screen space
+      "out vec3 vertexColor;\n"    // sends color from vertex shader to fragment
       "void main()\n"
       "{\n"
-      "vertexColor = color;\n"
+      "vertexColor = color;\n" // pass vertex color
       " gl_Position = model * vec4(position, 1.0);\n"
       "}\n";
+
   const char *fragmentShaderSource =
       "#version 330 core\n"
       // The fragment shader recieves interpolated color
