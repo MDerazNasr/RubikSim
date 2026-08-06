@@ -190,26 +190,6 @@ void Application::createCubeResources() {
           }
       }
   }
-
-  const glm::mat4 baseRotation = glm::rotation(glm::mat4(1.0F), time, glm::vec3(0.5F, 1.0F, 0.0F));
-
-  for (const Cubie& cubie : cubies_) {
-      const glm::mat4 model = 
-          baseRotation *
-          glm::translate(glm::mat4(1.0F), 
-          cubie.position * 1.1F) * 
-          glm::scale(glm::mat4(1.0F), glm::vec3(0.3F));
-
-      glUniformMatrix4fv(
-              glGetUniformLocation(shaderProgram_,
-              "model"),
-              1,
-              GL_FALSE,
-              glm::value_ptr(model)
-       );
-      cubeMesh_->draw();
-  }
-
 }
 Application::~Application() {
   destroyCubeResources();
@@ -259,7 +239,7 @@ int Application::run() {
     //  glm::mat4(1.0 F) creates an identity matrix which is when it changes
     //  nothing by itself glm..vec3 ... create a 3d vecrtore pointing along the
     //  Z axis
-    const glm::mat4 model = glm::rotate(
+    const glm::mat4 baseRotation = glm::rotate(
         glm::mat4(1.0F), time,
         glm::vec3(0.5F, 1.0F, 0.0F)); // rotate cube around diagonal axis
     const glm::mat4 view = glm::translate(
@@ -269,15 +249,21 @@ int Application::run() {
         glm::perspective(glm::radians(45.0F), 800.0F / 600.0F, 0.1F,
                          100.0F); // Perspective camera lens.
 
-    // upload matrix to gpu
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "model"), 1,
-                       GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "view"), 1,
                        GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "projection"), 1,
                        GL_FALSE, glm::value_ptr(projection));
 
-    cubeMesh_->draw();
+    for (const Cubie &cubie : cubies_) {
+      const glm::mat4 model =
+          baseRotation *
+          glm::translate(glm::mat4(1.0F), cubie.position * 1.1F) *
+          glm::scale(glm::mat4(1.0F), glm::vec3(0.3F));
+
+      glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "model"), 1,
+                         GL_FALSE, glm::value_ptr(model));
+      cubeMesh_->draw();
+    }
 
     glfwPollEvents();
     glfwSwapBuffers(window_);
