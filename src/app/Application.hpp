@@ -9,9 +9,15 @@
  */
 struct GLFWwindow; // forward declaration
 #include "renderer/Mesh.hpp"
+#include <glm/glm.hpp>
 #include <memory>
+#include <vector>
 
 namespace rubiksim {
+struct Cubie {
+  glm::vec3 position; // stores x, y, z grid position for one small cube
+};
+
 // declares a class named Application
 class Application {
   // everything after public is accessible from outsde the class
@@ -35,6 +41,8 @@ private:
   // shaderProgram_ stores shader program ids
   std::unique_ptr<Mesh> cubeMesh_;
   unsigned int shaderProgram_;
+  std::vector<Cubie>
+      cubies_; // stores all small cubes that make up the rubik's cubeMesh_
 
   Application(const Application &) = delete;
   Application &operator=(const Application &) = delete;

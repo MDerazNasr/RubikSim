@@ -60,7 +60,7 @@ unsigned int createShaderProgram() {
       "void main()\n"
       "{\n"
       "vertexColor = color;\n" // pass vertex color
-      " gl_Position = model * vec4(position, 1.0);\n"
+      " gl_Position = projection * view * model * vec4(position, 1.0);\n"
       "}\n";
 
   const char *fragmentShaderSource =
@@ -169,28 +169,47 @@ void Application::createCubeResources() {
       3, 7, 6, 3, 6, 2, // Top face.
       0, 1, 5, 0, 5, 4  // Bottom face.
   };
-};
-// NOTE - a square is made of two triangles because GPUs draw triangles
-shaderProgram_ = createShaderProgram();
-cubeMesh_ = std::make_unique<Mesh>(
-    vertices, indices); // Allocate a Mesh owned by unique_ptr
-/*
- *  Important C++ syntax:
 
-  std::vector<Vertex> is a dynamic array of Vertex.
+  shaderProgram_ = createShaderProgram();
+  cubeMesh_ = std::make_unique<Mesh>(vertices, indices);
+  cubies_.clear(); //removes any exisiting cubies from the vecrtor 
+    
+  for (int x = -1; x <= 1; ++x) { // loop through left, center, right
+      for (int y = -1; y <= 1; ++y) { // loop through back center front
+          for (int z = -1; z <= 1; ++z){ //loop through back center Front
+              // push_back appendsa a new item to a std::vector
+              cubies_.push_back(Cubie{
+                      glm::vec3(
+                              // explicity coverts int to float
+                              static_cast<float>(x),
+                              static_cast<float>(y),
+                              static_cast<float>(z)
+                              )
+                      });
 
-  Each {...} inside the vector creates one Vertex.
+          }
+      }
+  }
 
-  Each vertex has:
+  const glm::mat4 baseRotation = glm::rotation(glm::mat4(1.0F), time, glm::vec3(0.5F, 1.0F, 0.0F));
 
-  x y z r g b
+  for (const Cubie& cubie : cubies_) {
+      const glm::mat4 model = 
+          baseRotation *
+          glm::translate(glm::mat4(1.0F), 
+          cubie.position * 1.1F) * 
+          glm::scale(glm::mat4(1.0F), glm::vec3(0.3F));
 
-  The cube has 8 corner vertices.
+      glUniformMatrix4fv(
+              glGetUniformLocation(shaderProgram_,
+              "model"),
+              1,
+              GL_FALSE,
+              glm::value_ptr(model)
+       );
+      cubeMesh_->draw();
+  }
 
-  The index list has 36 indices because:
-
-  6 faces * 2 triangles per face * 3 vertices per triangle = 36 indices
- */
 }
 Application::~Application() {
   destroyCubeResources();
@@ -223,8 +242,7 @@ int Application::run() {
     // the 4 vals are red, green, blue, alph (opacitya
     glClearColor(0.08F, 0.10F, 0.12F, 1.0F);
     // tells openGL you want to clear only the color part of the frame buffer
-    glClear(GL_COLOR_BUFFER_BIT |
-            GL_DEPTH_BUFFER_BAIT); // Clear color and GL_DEPTH_TES
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // activates your shader program
     glUseProgram(shaderProgram_);
@@ -244,49 +262,25 @@ int Application::run() {
     const glm::mat4 model = glm::rotate(
         glm::mat4(1.0F), time,
         glm::vec3(0.5F, 1.0F, 0.0F)); // rotate cube around diagonal axis
-    // Ask openGL where the shader uniform named model lives
-    //  Find model uniform in thw active shader
-    const int modelLocation = glGetUniformLocation(shaderProgram_, "model");
     const glm::mat4 view = glm::translate(
         glm::mat4(1.0F),
-        glm::vec3(0.0F, 0.0F, -3.0F)) // Move the world away from the camera.
-        const glm::mat4 projection =
-            glm::perspective(glm::radians(45.0F), 800.0F / 600.0F, 0.1F,
-                             100.0F); // Perspective camera lens.
+        glm::vec3(0.0F, 0.0F, -3.0F)); // Move away from the camera.
+    const glm::mat4 projection =
+        glm::perspective(glm::radians(45.0F), 800.0F / 600.0F, 0.1F,
+                         100.0F); // Perspective camera lens.
 
     // upload matrix to gpu
-    // ask mesh to   glUniformMatrix4fv(
-      glGetUniformLocation(shaderProgram_, "model"),      // Find model uniform.
-      1,                                                  // Upload one matrix.
-      GL_FALSE,                                           // Do not transpose.
-      glm::value_ptr(model)                               // Raw pointer to
-      matrix floats.
-  );
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "model"), 1,
+                       GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "view"), 1,
+                       GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "projection"), 1,
+                       GL_FALSE, glm::value_ptr(projection));
 
-      glUniformMatrix4fv(
-          glGetUniformLocation(shaderProgram_, "view"), // Find view uniform.
-          1, GL_FALSE, glm::value_ptr(view));
+    cubeMesh_->draw();
 
-      glUniformMatrix4fv(
-          glGetUniformLocation(shaderProgram_, "projection"), // Find projection
-          uniform.1, GL_FALSE, glm::value_ptr(projection));
-      bind its VAO and issue glDrawElements
-          // -> means acces a memebr through a pointer
-          // cubeMesh_- is a std::unique_ptr<Mesh>
-          cubeMesh_->draw();
-
-      /*
-       * the line above means:
-       * go to the nesh obj owned by squareMesh_
-       * call its draw function
-       *
-       * you should see:
-       * a rotating square with blended vertex colors
-       * on the same dark blue gray background
-       */
-
-      glfwPollEvents();
-      glfwSwapBuffers(window_);
+    glfwPollEvents();
+    glfwSwapBuffers(window_);
   }
   return 0;
 }
