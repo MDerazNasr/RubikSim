@@ -140,27 +140,18 @@ Application::Application() : window_(nullptr), shaderProgram_(0) {
 }
 
 void Application::createCubeResources() {
-  // create shader and cube mesh after openGL cnext is active
-  // creates an array of floating point numbers that cant be modified -- each
-  // group of 3 numbers is one vertex
-  // const float vertices[] = {0.0F, 0.5F, 0.0F,  -0.5F, -0.5F,
-  //                           0.0F, 0.5F, -0.5F, 0.0F};
-
-  // the followign is a dynamic array of vertex structs
+  // create shader and cube mesh after openGL context is active
   const std::vector<Vertex> vertices = {
       {-0.5F, -0.5F, -0.5F, 1.0F, 0.0F, 0.0F}, // 0 back bottom left, red.
       {0.5F, -0.5F, -0.5F, 0.0F, 1.0F, 0.0F},  // 1 back bottom right, green.
       {0.5F, 0.5F, -0.5F, 0.0F, 0.0F, 1.0F},   // 2 back top right, blue.
       {-0.5F, 0.5F, -0.5F, 1.0F, 1.0F, 0.0F},  // 3 back top left, yellow.
-      {-0.5F, -0.5F, 0.5F, 1.0F, 0.0F, 1.0F},  // 4 front bottom left,magenta.
+      {-0.5F, -0.5F, 0.5F, 1.0F, 0.0F, 1.0F},  // 4 front bottom left, magenta.
       {0.5F, -0.5F, 0.5F, 0.0F, 1.0F, 1.0F},   // 5 front bottom right, cyan.
       {0.5F, 0.5F, 0.5F, 1.0F, 1.0F, 1.0F},    // 6 front top right, white.
       {-0.5F, 0.5F, 0.5F, 1.0F, 0.5F, 0.0F}    // 7 front top left, orange.
   };
 
-  // every vertex has 6 floats
-  // x y z r g b
-  // now indices -
   const std::vector<unsigned int> indices = {
       4, 5, 6, 4, 6, 7, // Front face.
       1, 0, 3, 1, 3, 2, // Back face.
@@ -172,64 +163,19 @@ void Application::createCubeResources() {
 
   shaderProgram_ = createShaderProgram();
   cubeMesh_ = std::make_unique<Mesh>(vertices, indices);
-  cubies_.clear(); // removes any exisiting cubies from the vecrtor
+  cubies_.clear(); // removes any existing cubies from the vector
 
   for (int x = -1; x <= 1; ++x) {     // loop through left, center, right
-    for (int y = -1; y <= 1; ++y) {   // loop through back center front
-      for (int z = -1; z <= 1; ++z) { // loop through back center Front
-        // push_back appendsa a new item to a std::vector
+    for (int y = -1; y <= 1; ++y) {   // loop through back, center, front
+      for (int z = -1; z <= 1; ++z) { // loop through bottom, center, top
         cubies_.push_back(Cubie{glm::vec3(
-            // explicity coverts int to float
             static_cast<float>(x), static_cast<float>(y),
             static_cast<float>(z))});
       }
     }
   }
-  // cubieSpacing controls how far each small cube is from its neighbors
-  // A spacing of 1F means the cubies touch exactly
-  // 1.02F leaves a tiny gap so we can see the seperation lines
-  const float cubieSpacing = 1.02F;
-
-  // cubieScale controls the size of each small cube
-  // the og cube mesh foes from -0.5 to +0.5
-  // so its full size is 1 before scaling
-  // 0.48F makes each cubie almost fill one grid cell
-  const float cubieScale = 0.48F;
-
-  //
-
-  // const glm::mat4 baseRotation = glm::rotation(glm::mat4(1.0F), time,
-  // glm::vec3(0.5F, 1.0F, 0.0F));
-
-  // Draw every small cube in the Rubik's cube
-  // cubies_ stroes 27 positions
-  //   x = -1, 0, 1
-  //   y = -1, 0, 1
-  //   z = -1, 0, 1
-  for (const Cubie &cubie : cubies_) {
-    // start with the rotation for the whole Rubik's cube
-    // Then translate each cubie to its own grid position
-    // Then scale the cubie down so it fits inside one grid cell
-    // Matrix order matters:
-    // baseRotation affects the whole cube group
-    // translate moves this indiviual cubie
-    // scale changes this indiviual cube size
-    const glm::mat4 model =
-        baseRotation *
-        glm::translate(glm::mat4(1.0F), cubie.position * cubieSpacing) *
-        glm::scale(glm::mat4(1.0F), glm::vec3(cubieScale));
-
-    // sent this to cubies model matrix to the vertex shader
-    // the shader uses
-    //  projects * view * model * position
-    //  to place this cubie on screen
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "model"), 1,
-                       GL_FALSE, glm::value_ptr(model));
-    // draw the same cube mesh again
-    // we reuse one mesh obj but with a diff model matrix each time
-    cubeMesh_->draw();
-  }
 }
+
 Application::~Application() {
   destroyCubeResources();
 
@@ -240,11 +186,7 @@ Application::~Application() {
 }
 
 void Application::destroyCubeResources() {
-  // reset destroys the objects insdie the unique_ptr
-  // this calls Mesh::~Mesh()
-  // that destructor deletes the VAO, VBO, & EBO
-  // Then Application del only the shader program
-  cubeMesh_.reset(); // Destroys the Mesh, which delets VAO, VBO and EBO
+  cubeMesh_.reset(); // Destroys the Mesh, which deletes VAO, VBO and EBO
   if (shaderProgram_) {
     glDeleteProgram(shaderProgram_); // deletes the GPU shader program
     shaderProgram_ = 0;              // Marks the handle as empty
@@ -255,30 +197,14 @@ int Application::run() {
 
   std::cout << "RubikSim starting...\n";
   while (!glfwWindowShouldClose(window_)) {
-    // sets the color that openGL will use when clearing the screen
-    // the numbers are floating point values
-    // F means float
-    // the 4 vals are red, green, blue, alph (opacitya
     glClearColor(0.08F, 0.10F, 0.12F, 1.0F);
-    // tells openGL you want to clear only the color part of the frame buffer
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // activates your shader program
     glUseProgram(shaderProgram_);
-    // activates your triangle layout
 
-    // glfwGetTime returns seconds as double. static_cast<float> converts it to
-    // float
-    // staic... is an explicit type conversion, it says ik this val is a double
-    // but i want a float
     const float time = static_cast<float>(glfwGetTime());
 
-    // create a rotation matric around the z axis
-    //  const glm::mat4 model creates a matrix var that cant be reassigned
-    //  glm::mat4(1.0 F) creates an identity matrix which is when it changes
-    //  nothing by itself glm..vec3 ... create a 3d vecrtore pointing along the
-    //  Z axis
-    const glm::mat4 model = glm::rotate(
+    const glm::mat4 baseRotation = glm::rotate(
         glm::mat4(1.0F), time,
         glm::vec3(0.5F, 1.0F, 0.0F)); // rotate cube around diagonal axis
     const glm::mat4 view = glm::translate(
@@ -288,15 +214,27 @@ int Application::run() {
         glm::perspective(glm::radians(45.0F), 800.0F / 600.0F, 0.1F,
                          100.0F); // Perspective camera lens.
 
-    // upload matrix to gpu
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "model"), 1,
-                       GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "view"), 1,
                        GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "projection"), 1,
                        GL_FALSE, glm::value_ptr(projection));
 
-    cubeMesh_->draw();
+    // cubieSpacing controls how far each small cube is from its neighbors
+    // 1.02F leaves a tiny gap so we can see the separation lines
+    const float cubieSpacing = 1.02F;
+    // cubieScale controls the size of each small cube (0.48F makes each cubie almost fill one grid cell)
+    const float cubieScale = 0.48F;
+
+    for (const Cubie &cubie : cubies_) {
+      const glm::mat4 model =
+          baseRotation *
+          glm::translate(glm::mat4(1.0F), cubie.position * cubieSpacing) *
+          glm::scale(glm::mat4(1.0F), glm::vec3(cubieScale));
+
+      glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "model"), 1,
+                         GL_FALSE, glm::value_ptr(model));
+      cubeMesh_->draw();
+    }
 
     glfwPollEvents();
     glfwSwapBuffers(window_);
