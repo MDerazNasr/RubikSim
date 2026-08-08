@@ -172,23 +172,62 @@ void Application::createCubeResources() {
 
   shaderProgram_ = createShaderProgram();
   cubeMesh_ = std::make_unique<Mesh>(vertices, indices);
-  cubies_.clear(); //removes any exisiting cubies from the vecrtor 
-    
-  for (int x = -1; x <= 1; ++x) { // loop through left, center, right
-      for (int y = -1; y <= 1; ++y) { // loop through back center front
-          for (int z = -1; z <= 1; ++z){ //loop through back center Front
-              // push_back appendsa a new item to a std::vector
-              cubies_.push_back(Cubie{
-                      glm::vec3(
-                              // explicity coverts int to float
-                              static_cast<float>(x),
-                              static_cast<float>(y),
-                              static_cast<float>(z)
-                              )
-                      });
+  cubies_.clear(); // removes any exisiting cubies from the vecrtor
 
-          }
+  for (int x = -1; x <= 1; ++x) {     // loop through left, center, right
+    for (int y = -1; y <= 1; ++y) {   // loop through back center front
+      for (int z = -1; z <= 1; ++z) { // loop through back center Front
+        // push_back appendsa a new item to a std::vector
+        cubies_.push_back(Cubie{glm::vec3(
+            // explicity coverts int to float
+            static_cast<float>(x), static_cast<float>(y),
+            static_cast<float>(z))});
       }
+    }
+  }
+  // cubieSpacing controls how far each small cube is from its neighbors
+  // A spacing of 1F means the cubies touch exactly
+  // 1.02F leaves a tiny gap so we can see the seperation lines
+  const float cubieSpacing = 1.02F;
+
+  // cubieScale controls the size of each small cube
+  // the og cube mesh foes from -0.5 to +0.5
+  // so its full size is 1 before scaling
+  // 0.48F makes each cubie almost fill one grid cell
+  const float cubieScale = 0.48F;
+
+  //
+
+  // const glm::mat4 baseRotation = glm::rotation(glm::mat4(1.0F), time,
+  // glm::vec3(0.5F, 1.0F, 0.0F));
+
+  // Draw every small cube in the Rubik's cube
+  // cubies_ stroes 27 positions
+  //   x = -1, 0, 1
+  //   y = -1, 0, 1
+  //   z = -1, 0, 1
+  for (const Cubie &cubie : cubies_) {
+    // start with the rotation for the whole Rubik's cube
+    // Then translate each cubie to its own grid position
+    // Then scale the cubie down so it fits inside one grid cell
+    // Matrix order matters:
+    // baseRotation affects the whole cube group
+    // translate moves this indiviual cubie
+    // scale changes this indiviual cube size
+    const glm::mat4 model =
+        baseRotation *
+        glm::translate(glm::mat4(1.0F), cubie.position * cubieSpacing) *
+        glm::scale(glm::mat4(1.0F), glm::vec3(cubieScale));
+
+    // sent this to cubies model matrix to the vertex shader
+    // the shader uses
+    //  projects * view * model * position
+    //  to place this cubie on screen
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "model"), 1,
+                       GL_FALSE, glm::value_ptr(model));
+    // draw the same cube mesh again
+    // we reuse one mesh obj but with a diff model matrix each time
+    cubeMesh_->draw();
   }
 }
 Application::~Application() {
@@ -239,31 +278,25 @@ int Application::run() {
     //  glm::mat4(1.0 F) creates an identity matrix which is when it changes
     //  nothing by itself glm..vec3 ... create a 3d vecrtore pointing along the
     //  Z axis
-    const glm::mat4 baseRotation = glm::rotate(
+    const glm::mat4 model = glm::rotate(
         glm::mat4(1.0F), time,
         glm::vec3(0.5F, 1.0F, 0.0F)); // rotate cube around diagonal axis
     const glm::mat4 view = glm::translate(
         glm::mat4(1.0F),
-        glm::vec3(0.0F, 0.0F, -3.0F)); // Move away from the camera.
+        glm::vec3(0.0F, 0.0F, -6.0F)); // Move away from the camera.
     const glm::mat4 projection =
         glm::perspective(glm::radians(45.0F), 800.0F / 600.0F, 0.1F,
                          100.0F); // Perspective camera lens.
 
+    // upload matrix to gpu
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "model"), 1,
+                       GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "view"), 1,
                        GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "projection"), 1,
                        GL_FALSE, glm::value_ptr(projection));
 
-    for (const Cubie &cubie : cubies_) {
-      const glm::mat4 model =
-          baseRotation *
-          glm::translate(glm::mat4(1.0F), cubie.position * 1.1F) *
-          glm::scale(glm::mat4(1.0F), glm::vec3(0.3F));
-
-      glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "model"), 1,
-                         GL_FALSE, glm::value_ptr(model));
-      cubeMesh_->draw();
-    }
+    cubeMesh_->draw();
 
     glfwPollEvents();
     glfwSwapBuffers(window_);
