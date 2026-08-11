@@ -33,6 +33,8 @@ public:
 private:
   void createCubeResources();
   void destroyCubeResources();
+  //
+  void processInput(float deltaTime);
 
   GLFWwindow *window_;
   // unsigned int means non negative integer
@@ -41,6 +43,21 @@ private:
   // shaderProgram_ stores shader program ids
   std::unique_ptr<Mesh> cubeMesh_;
   unsigned int shaderProgram_;
+  int modelLoc_{-1};
+  int viewLoc_{-1};
+  int projectionLoc_{-1};
+  int cubiePositionLoc_{-1};
+
+  // camera orbit values
+  // yaw rotates left/right around the cubes
+  // pitch rotates up/down
+  // distance controls zoom
+  float cameraYaw_{0.8F};
+  float cameraPitch_{0.5F};
+  float cameraDistance_{6.0F};
+
+  // used to calc deltaTime
+  float lastFrameTime_{0.0F};
   std::vector<Cubie>
       cubies_; // stores all small cubes that make up the rubik's cubeMesh_
 

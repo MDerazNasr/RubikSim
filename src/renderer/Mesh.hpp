@@ -8,10 +8,12 @@ struct Vertex {
   float y;
   float z;
 
-  // vertex red, green, blue values
-  float r;
-  float g;
-  float b;
+  // normal x y z
+  // a normal is the direction a face points
+  // We use this so the shader knows which face it is coloring
+  float nx;
+  float ny;
+  float nz;
 };
 
 // class creates a custom type. class members are private by default

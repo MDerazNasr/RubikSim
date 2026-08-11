@@ -13,6 +13,7 @@
 #include <glm/glm.hpp>
 // glm::rotate, glm::translate, glm::perspective
 #include <glm/gtc/matrix_transform.hpp>
+
 // glm::value_ptr for sending matrices to openGL
 #include <glm/gtc/type_ptr.hpp>
 
@@ -42,7 +43,7 @@ unsigned int createShaderProgram() {
       "#version 330 core\n"
       "layout (location = 0) in vec3 position;\n"
       // the vertex shader nbow accpet sa second vertex attrib
-      "layout (location = 1) in vec3 color;\n"
+      "layout (location = 1) in vec3 normal;\n"
       // uniform means a val sendf from cpp to the shader
       // mat4 means a 4x4 matrix
       // model is the name of the matrix
@@ -56,25 +57,40 @@ unsigned int createShaderProgram() {
       // projection turns 3D coordinates into screen coordinates
       "uniform mat4 projection;\n" // projecttion transforms 3d camera space to
                                    // screen space
-      "out vec3 vertexColor;\n"    // sends color from vertex shader to fragment
+      "out vec3 vertexNormal;\n" // sends normal from vertex shader to fragment
       "void main()\n"
       "{\n"
-      "vertexColor = color;\n" // pass vertex color
+      "vertexNormal = normal;\n" // pass vertex normal
       " gl_Position = projection * view * model * vec4(position, 1.0);\n"
       "}\n";
 
   const char *fragmentShaderSource =
       "#version 330 core\n"
-      // The fragment shader recieves interpolated color
-      // Interpolation is a mathematical and computational method of estimating
-      // unknown values that fall between known data points.
-
-      "in vec3 vertexColor;\n"
+      "in vec3 vertexNormal;\n"
+      "uniform vec3 cubiePosition;\n"
       "out vec4 fragmentColor;\n"
       "void main()\n"
       "{\n"
-      // " color = vec4(0.85, 0.20, 0.15, 1.0);\n"
-      " fragmentColor = vec4(vertexColor, 1.0);\n"
+      " vec3 color = vec3(0.05, 0.05, 0.05);\n"
+      "\n"
+      " if (vertexNormal.z > 0.5 && cubiePosition.z > 0.5) {\n"
+      "   color = vec3(0.0, 0.8, 0.1);\n"
+      " } else if (vertexNormal.z < -0.5 && cubiePosition.z < -0.5) {\n"
+      "   color = vec3(0.0, 0.2, 1.0);\n"
+      " } else if (vertexNormal.x < -0.5 && cubiePosition.x < -0.5) {\n"
+      "   color = vec3(1.0, 0.45, 0.0);\n"
+      " } else if (vertexNormal.x > 0.5 && cubiePosition.x > 0.5) {\n"
+      "   color = vec3(0.9, 0.0, 0.0);\n"
+      " } else if (vertexNormal.y > 0.5 && cubiePosition.y > 0.5) {\n"
+      "   color = vec3(1.0, 1.0, 1.0);\n"
+      " } else if (vertexNormal.y < -0.5 && cubiePosition.y < -0.5) {\n"
+      "   color = vec3(1.0, 0.9, 0.0);\n"
+      " }\n"
+      "\n"
+      " vec3 lightDir = normalize(vec3(0.5, 1.0, 0.8));\n"
+      " float diff = max(dot(vertexNormal, lightDir), 0.0);\n"
+      " vec3 shadedColor = color * (0.45 + 0.55 * diff);\n"
+      " fragmentColor = vec4(shadedColor, 1.0);\n"
       "}\n";
 
   const unsigned int vertexShader =
@@ -109,12 +125,7 @@ Application::Application() : window_(nullptr), shaderProgram_(0) {
   if (!glfwInit()) {
     throw std::runtime_error("Failed to initialize GLFW");
   }
-  // glfwhint tells glfw hwo thr next window should be created
-  // context_window verisiob major slect teh majoropengl versioj
-  // conext.... minor slect the minor opengl version (3 --> 3.3)
-  // context.... core_profile means moden opengl without old legacy
-  // GLFW_OPENGL_FORWARD_COMPAT asks for a context compatible with macos
-  //
+
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -127,50 +138,79 @@ Application::Application() : window_(nullptr), shaderProgram_(0) {
     throw std::runtime_error("Failed to create GLFW window");
   }
 
-  glfwMakeContextCurrent(window_); // makes this windows opengl context active
-  // glEnable turns on an opengl capability
-  // GL_DEPTH_TEST means opengl should track how far each pixel is from the
-  // camera
-  // wihtout depth tetsing triangles re drawn mostly in the order you submit
-  // them which makes 3d objects look wrong
-  glEnable(GL_DEPTH_TEST); // Enables depth testing so nearer triangles hide
-                           // farther triangles
-  // Create shader and cube mesh after OpenGL context is active
+  glfwMakeContextCurrent(window_); // makes this window's opengl context active
+  glfwSwapInterval(1);             // Enable vsync for smooth frame swapping
+  glfwShowWindow(window_);         // Ensure window is visible on macOS
+  glfwFocusWindow(window_);        // Bring window to front
+
+  glEnable(GL_DEPTH_TEST); // Enables depth testing
   createCubeResources();
 }
 
 void Application::createCubeResources() {
-  // create shader and cube mesh after openGL context is active
+  // This cube uses 24 vertices (4 per face) so each face has its own color.
   const std::vector<Vertex> vertices = {
-      {-0.5F, -0.5F, -0.5F, 1.0F, 0.0F, 0.0F}, // 0 back bottom left, red.
-      {0.5F, -0.5F, -0.5F, 0.0F, 1.0F, 0.0F},  // 1 back bottom right, green.
-      {0.5F, 0.5F, -0.5F, 0.0F, 0.0F, 1.0F},   // 2 back top right, blue.
-      {-0.5F, 0.5F, -0.5F, 1.0F, 1.0F, 0.0F},  // 3 back top left, yellow.
-      {-0.5F, -0.5F, 0.5F, 1.0F, 0.0F, 1.0F},  // 4 front bottom left, magenta.
-      {0.5F, -0.5F, 0.5F, 0.0F, 1.0F, 1.0F},   // 5 front bottom right, cyan.
-      {0.5F, 0.5F, 0.5F, 1.0F, 1.0F, 1.0F},    // 6 front top right, white.
-      {-0.5F, 0.5F, 0.5F, 1.0F, 0.5F, 0.0F}    // 7 front top left, orange.
+      // Front face, z = +0.5, normal (0, 0, 1)
+      {-0.5F, -0.5F, 0.5F, 0.0F, 0.0F, 1.0F},
+      {0.5F, -0.5F, 0.5F, 0.0F, 0.0F, 1.0F},
+      {0.5F, 0.5F, 0.5F, 0.0F, 0.0F, 1.0F},
+      {-0.5F, 0.5F, 0.5F, 0.0F, 0.0F, 1.0F},
+
+      // Back face, z = -0.5, normal (0, 0, -1)
+      {0.5F, -0.5F, -0.5F, 0.0F, 0.0F, -1.0F},
+      {-0.5F, -0.5F, -0.5F, 0.0F, 0.0F, -1.0F},
+      {-0.5F, 0.5F, -0.5F, 0.0F, 0.0F, -1.0F},
+      {0.5F, 0.5F, -0.5F, 0.0F, 0.0F, -1.0F},
+
+      // Left face, x = -0.5, normal (-1, 0, 0)
+      {-0.5F, -0.5F, -0.5F, -1.0F, 0.0F, 0.0F},
+      {-0.5F, -0.5F, 0.5F, -1.0F, 0.0F, 0.0F},
+      {-0.5F, 0.5F, 0.5F, -1.0F, 0.0F, 0.0F},
+      {-0.5F, 0.5F, -0.5F, -1.0F, 0.0F, 0.0F},
+
+      // Right face, x = +0.5, normal (1, 0, 0)
+      {0.5F, -0.5F, 0.5F, 1.0F, 0.0F, 0.0F},
+      {0.5F, -0.5F, -0.5F, 1.0F, 0.0F, 0.0F},
+      {0.5F, 0.5F, -0.5F, 1.0F, 0.0F, 0.0F},
+      {0.5F, 0.5F, 0.5F, 1.0F, 0.0F, 0.0F},
+
+      // Top face, y = +0.5, normal (0, 1, 0)
+      {-0.5F, 0.5F, 0.5F, 0.0F, 1.0F, 0.0F},
+      {0.5F, 0.5F, 0.5F, 0.0F, 1.0F, 0.0F},
+      {0.5F, 0.5F, -0.5F, 0.0F, 1.0F, 0.0F},
+      {-0.5F, 0.5F, -0.5F, 0.0F, 1.0F, 0.0F},
+
+      // Bottom face, y = -0.5, normal (0, -1, 0)
+      {-0.5F, -0.5F, -0.5F, 0.0F, -1.0F, 0.0F},
+      {0.5F, -0.5F, -0.5F, 0.0F, -1.0F, 0.0F},
+      {0.5F, -0.5F, 0.5F, 0.0F, -1.0F, 0.0F},
+      {-0.5F, -0.5F, 0.5F, 0.0F, -1.0F, 0.0F},
   };
 
   const std::vector<unsigned int> indices = {
-      4, 5, 6, 4, 6, 7, // Front face.
-      1, 0, 3, 1, 3, 2, // Back face.
-      0, 4, 7, 0, 7, 3, // Left face.
-      5, 1, 2, 5, 2, 6, // Right face.
-      3, 7, 6, 3, 6, 2, // Top face.
-      0, 1, 5, 0, 5, 4  // Bottom face.
+      0,  1,  2,  0,  2,  3,  // Front
+      4,  5,  6,  4,  6,  7,  // Back
+      8,  9,  10, 8,  10, 11, // Left
+      12, 13, 14, 12, 14, 15, // Right
+      16, 17, 18, 16, 18, 19, // Top
+      20, 21, 22, 20, 22, 23  // Bottom
   };
 
   shaderProgram_ = createShaderProgram();
-  cubeMesh_ = std::make_unique<Mesh>(vertices, indices);
-  cubies_.clear(); // removes any existing cubies from the vector
+  modelLoc_ = glGetUniformLocation(shaderProgram_, "model");
+  viewLoc_ = glGetUniformLocation(shaderProgram_, "view");
+  projectionLoc_ = glGetUniformLocation(shaderProgram_, "projection");
+  cubiePositionLoc_ = glGetUniformLocation(shaderProgram_, "cubiePosition");
 
-  for (int x = -1; x <= 1; ++x) {     // loop through left, center, right
-    for (int y = -1; y <= 1; ++y) {   // loop through back, center, front
-      for (int z = -1; z <= 1; ++z) { // loop through bottom, center, top
-        cubies_.push_back(Cubie{glm::vec3(
-            static_cast<float>(x), static_cast<float>(y),
-            static_cast<float>(z))});
+  cubeMesh_ = std::make_unique<Mesh>(vertices, indices);
+  cubies_.clear();
+
+  for (int x = -1; x <= 1; ++x) {
+    for (int y = -1; y <= 1; ++y) {
+      for (int z = -1; z <= 1; ++z) {
+        cubies_.push_back(
+            Cubie{glm::vec3(static_cast<float>(x), static_cast<float>(y),
+                            static_cast<float>(z))});
       }
     }
   }
@@ -186,17 +226,61 @@ Application::~Application() {
 }
 
 void Application::destroyCubeResources() {
-  cubeMesh_.reset(); // Destroys the Mesh, which deletes VAO, VBO and EBO
+  cubeMesh_.reset();
   if (shaderProgram_) {
-    glDeleteProgram(shaderProgram_); // deletes the GPU shader program
-    shaderProgram_ = 0;              // Marks the handle as empty
+    glDeleteProgram(shaderProgram_);
+    shaderProgram_ = 0;
   }
+  modelLoc_ = -1;
+  viewLoc_ = -1;
+  projectionLoc_ = -1;
+  cubiePositionLoc_ = -1;
+}
+
+void Application::processInput(float deltaTime) {
+  // if escape is pressed, tell GLFW the window should close
+  if (glfwGetKey(window_, GLFW_KEY_ESCAPE)) == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window_, GLFW_TRUE);
+    }
+
+  // These numbers control how fast the camera moves
+  // The values are multiplied by deltaTime so speed is frame-rate independant
+  const float orbitSpeed = 1.5F;
+  const float zoomSpeed = 3.0F;
+
+  if glfwGetKey (window_, GLFW_KEY_LEFT) == GLFW_PRESS) {
+        cameraYaw_ -= orbitSpeed * deltaTime;
+    }
+  if glfwGetKey (window_, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+        cameraYaw_ += orbitSpeed * deltaTime;
+    }
+  if glfwGetKey (window_, GLFW_KEY_UP) == GLFW_PRESS) {
+        cameraPitch_ += orbitSpeed * deltaTime;
+    }
+  if glfwGetKey (window_, GLFW_KEY_DOWN) == GLFW_PRESS) {
+        cameraPitch_ -= orbitSpeed * deltaTime;
+    }
+  if glfwGetKey (window_, GLFW_KEY_W) == GLFW_PRESS) {
+        cameraDistance_ -= zoomSpeed * deltaTime;
+    }
+  if glfwGetKey (window_, GLFW_KEY_S) == GLFW_PRESS) {
+        cameraDistance_ += zoomSpeed * deltaTime;
+    }
+
+  // clamp means keep a value inside a safe range
 }
 
 int Application::run() {
-
   std::cout << "RubikSim starting...\n";
   while (!glfwWindowShouldClose(window_)) {
+    glfwPollEvents();
+
+    int displayW = 0, displayH = 0;
+    glfwGetFramebufferSize(window_, &displayW, &displayH);
+    if (displayW > 0 && displayH > 0) {
+      glViewport(0, 0, displayW, displayH);
+    }
+
     glClearColor(0.08F, 0.10F, 0.12F, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -205,24 +289,26 @@ int Application::run() {
     const float time = static_cast<float>(glfwGetTime());
 
     const glm::mat4 baseRotation = glm::rotate(
-        glm::mat4(1.0F), time,
-        glm::vec3(0.5F, 1.0F, 0.0F)); // rotate cube around diagonal axis
-    const glm::mat4 view = glm::translate(
-        glm::mat4(1.0F),
-        glm::vec3(0.0F, 0.0F, -6.0F)); // Move away from the camera.
+        glm::mat4(1.0F), time, glm::normalize(glm::vec3(0.5F, 1.0F, 0.0F)));
+    const glm::mat4 view =
+        glm::translate(glm::mat4(1.0F), glm::vec3(0.0F, 0.0F, -6.0F));
+
+    float aspect =
+        (displayH > 0)
+            ? (static_cast<float>(displayW) / static_cast<float>(displayH))
+            : (800.0F / 600.0F);
     const glm::mat4 projection =
-        glm::perspective(glm::radians(45.0F), 800.0F / 600.0F, 0.1F,
-                         100.0F); // Perspective camera lens.
+        glm::perspective(glm::radians(45.0F), aspect, 0.1F, 100.0F);
 
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "view"), 1,
-                       GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "projection"), 1,
-                       GL_FALSE, glm::value_ptr(projection));
+    if (viewLoc_ != -1) {
+      glUniformMatrix4fv(viewLoc_, 1, GL_FALSE, glm::value_ptr(view));
+    }
+    if (projectionLoc_ != -1) {
+      glUniformMatrix4fv(projectionLoc_, 1, GL_FALSE,
+                         glm::value_ptr(projection));
+    }
 
-    // cubieSpacing controls how far each small cube is from its neighbors
-    // 1.02F leaves a tiny gap so we can see the separation lines
     const float cubieSpacing = 1.02F;
-    // cubieScale controls the size of each small cube (0.48F makes each cubie almost fill one grid cell)
     const float cubieScale = 0.48F;
 
     for (const Cubie &cubie : cubies_) {
@@ -231,12 +317,15 @@ int Application::run() {
           glm::translate(glm::mat4(1.0F), cubie.position * cubieSpacing) *
           glm::scale(glm::mat4(1.0F), glm::vec3(cubieScale));
 
-      glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "model"), 1,
-                         GL_FALSE, glm::value_ptr(model));
+      if (modelLoc_ != -1) {
+        glUniformMatrix4fv(modelLoc_, 1, GL_FALSE, glm::value_ptr(model));
+      }
+      if (cubiePositionLoc_ != -1) {
+        glUniform3fv(cubiePositionLoc_, 1, glm::value_ptr(cubie.position));
+      }
       cubeMesh_->draw();
     }
 
-    glfwPollEvents();
     glfwSwapBuffers(window_);
   }
   return 0;
