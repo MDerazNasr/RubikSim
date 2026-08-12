@@ -241,43 +241,43 @@ void Application::destroyCubeResources() {
 
 void Application::processInput(float deltaTime) {
   // if escape is pressed, tell GLFW the window should close
-  if (glfwGetKey(window_, GLFW_KEY_ESCAPE)) == GLFW_PRESS) {
-        glfwSetWindowShouldClose(window_, GLFW_TRUE);
-    }
+  if (glfwGetKey(window_, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+    glfwSetWindowShouldClose(window_, GLFW_TRUE);
+  }
 
   // These numbers control how fast the camera moves
   // The values are multiplied by deltaTime so speed is frame-rate independant
-  const float orbitSpeed = 1.5F;
+  const float orbitSpeed_ = 1.5F;
   const float zoomSpeed = 3.0F;
 
-  if glfwGetKey (window_, GLFW_KEY_LEFT) == GLFW_PRESS) {
-        cameraYaw_ -= orbitSpeed * deltaTime;
-    }
-  if glfwGetKey (window_, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-        cameraYaw_ += orbitSpeed * deltaTime;
-    }
-  if glfwGetKey (window_, GLFW_KEY_UP) == GLFW_PRESS) {
-        cameraPitch_ += orbitSpeed * deltaTime;
-    }
-  if glfwGetKey (window_, GLFW_KEY_DOWN) == GLFW_PRESS) {
-        cameraPitch_ -= orbitSpeed * deltaTime;
-    }
-  if glfwGetKey (window_, GLFW_KEY_W) == GLFW_PRESS) {
-        cameraDistance_ -= zoomSpeed * deltaTime;
-    }
-  if glfwGetKey (window_, GLFW_KEY_S) == GLFW_PRESS) {
-        cameraDistance_ += zoomSpeed * deltaTime;
-    }
+  if (glfwGetKey(window_, GLFW_KEY_LEFT) == GLFW_PRESS) {
+    cameraYaw_ -= orbitSpeed_ * deltaTime;
+  }
+  if (glfwGetKey(window_, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+    cameraYaw_ += orbitSpeed_ * deltaTime;
+  }
+  if (glfwGetKey(window_, GLFW_KEY_UP) == GLFW_PRESS) {
+    cameraPitch_ += orbitSpeed_ * deltaTime;
+  }
+  if (glfwGetKey(window_, GLFW_KEY_DOWN) == GLFW_PRESS) {
+    cameraPitch_ -= orbitSpeed_ * deltaTime;
+  }
+  if (glfwGetKey(window_, GLFW_KEY_W) == GLFW_PRESS) {
+    cameraDistance_ -= zoomSpeed * deltaTime;
+  }
+  if (glfwGetKey(window_, GLFW_KEY_S) == GLFW_PRESS) {
+    cameraDistance_ += zoomSpeed * deltaTime;
+  }
 
   // clamp means keep a value inside a safe range
   // we stop pitch before it goes fully vertical because that can make
   // camera movement confusing
   //
-  if (cameraPitch > 1.2F) {
-    cameraPitch = 1.2F;
+  if (cameraPitch_ > 1.2F) {
+    cameraPitch_ = 1.2F;
   }
-  if (cameraPitch < -1.2F) {
-    cameraPitch = -1.2F;
+  if (cameraPitch_ < -1.2F) {
+    cameraPitch_ = -1.2F;
   }
 
   // Prevent zooming inside the cube or too far away
