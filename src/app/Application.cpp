@@ -3,6 +3,7 @@
 #include "Application.hpp"
 // this includes the standard linrary stream tools
 // Angle brackets are used here
+#include <ios>
 #include <iostream>
 #include <stdexcept>
 // give this source file access rto glfw functions
@@ -15,6 +16,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 // glm::value_ptr for sending matrices to openGL
+#include <cmath>
 #include <glm/gtc/type_ptr.hpp>
 
 // anonymous namesce means these helper functions are only visible inside this
@@ -268,6 +270,23 @@ void Application::processInput(float deltaTime) {
     }
 
   // clamp means keep a value inside a safe range
+  // we stop pitch before it goes fully vertical because that can make
+  // camera movement confusing
+  //
+  if (cameraPitch > 1.2F) {
+    cameraPitch = 1.2F;
+  }
+  if (cameraPitch < -1.2F) {
+    cameraPitch = -1.2F;
+  }
+
+  // Prevent zooming inside the cube or too far away
+  if (cameraDistance_ < 3.0F) {
+    cameraDistance_ = 3.0F;
+  }
+  if (cameraDistance_ > 12.0F) {
+    cameraDistance_ = 12.0F;
+  }
 }
 
 int Application::run() {
@@ -286,12 +305,35 @@ int Application::run() {
 
     glUseProgram(shaderProgram_);
 
-    const float time = static_cast<float>(glfwGetTime());
+    // returns total seconda sicne GLFW starteda
+    const float currentTime = static_cast<float>(glfwGetTime());
 
-    const glm::mat4 baseRotation = glm::rotate(
-        glm::mat4(1.0F), time, glm::normalize(glm::vec3(0.5F, 1.0F, 0.0F)));
+    // deltatime is the time between this frsame and the previous frame
+    const float deltaTime = currentTime - lastFrameTime_;
+    lastFrameTime_ = currentTime;
+
+    processInput(deltaTime);
+
+    // the cuvbe utself is no longer rotating automatically
+    // we keep the model group stull and move the camera instead
+    const glm::mat4 baseRotation = glm::mat4(1.0F);
+
+    // convert yaw, pitch, and diatance into a 3D camera position
+    // cos(pitch) controsl the horizontal disatance
+    // sin(pitch) controls the height
+    // sin(yaw ) and cos(yaw) move the camera around the cube
+    const glm::vec3 cameraPosition(
+        cameraDistance_ * std::cos(cameraPitch_) * std::sin(cameraYaw_),
+        cameraDistance_ * std::sin(cameraPitch_),
+        cameraDistance_ * std::cos(cameraPitch_) * std::cos(cameraYaw_));
+
+    // lookAt creates a camera view matrix
+    // first argument: whre the camera is
+    // second argument: what the camera looks at
+    // third argument: which direction counts as up
     const glm::mat4 view =
-        glm::translate(glm::mat4(1.0F), glm::vec3(0.0F, 0.0F, -6.0F));
+        glm::lookAt(cameraPosition, glm::vec3(0.0F, 0.0F, 0.0F),
+                    glm::vec3(0.0F, 1.0F, 0.0F));
 
     float aspect =
         (displayH > 0)
