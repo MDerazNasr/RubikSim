@@ -15,7 +15,14 @@ struct GLFWwindow; // forward declaration
 
 namespace rubiksim {
 struct Cubie {
-  glm::vec3 position; // stores x, y, z grid position for one small cube
+  // grid pos inisde the cube
+  glm::vec3 position;
+  glm::vec3 frontColor;
+  glm::vec3 backColor;
+  glm::vec3 leftColor;
+  glm::vec3 rightColor;
+  glm::vec3 topColor;
+  glm::vec3 bottomColor;
 };
 
 // declares a class named Application
@@ -46,7 +53,13 @@ private:
   int modelLoc_{-1};
   int viewLoc_{-1};
   int projectionLoc_{-1};
-  int cubiePositionLoc_{-1};
+  // int cubiePositionLoc_{-1};
+  int frontColorLoc_{-1};
+  int backColorLoc_{-1};
+  int leftColorLoc_{-1};
+  int rightColorLoc_{-1};
+  int topColorLoc_{-1};
+  int bottomColorLoc_{-1};
 
   // camera orbit values
   // yaw rotates left/right around the cubes
