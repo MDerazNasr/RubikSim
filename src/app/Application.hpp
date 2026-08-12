@@ -25,6 +25,11 @@ struct Cubie {
   glm::vec3 bottomColor;
 };
 
+// enum means a variabkle that can only be one of these named choices
+// so instead of remembering: 0 means right, 1 means keft, 2 means top :
+// we can write readable code -> SelectedFace::Right, SelectedFace::Face
+enum class SelectedFace { Right, Left, Top, Bottom, Front, Back };
+
 // declares a class named Application
 class Application {
   // everything after public is accessible from outsde the class
@@ -42,6 +47,11 @@ private:
   void destroyCubeResources();
   //
   void processInput(float deltaTime);
+  // the const at the end indicates that the function does not modify the state
+  // of the class it belongs to.  returns true if this cubie belongs to the
+  // currently selected Face we use this before face turn animation so we know
+  // which cubies shoudl move
+  bool isCubieInSelectedFace(const Cubie &cubie) const;
 
   GLFWwindow *window_;
   // unsigned int means non negative integer
@@ -71,6 +81,9 @@ private:
 
   // used to calc deltaTime
   float lastFrameTime_{0.0F};
+  // the face currently selected for a future move
+  // we start with the right face bfecause is the first standard Rubik move
+  SelectedFace selectedFace_{SelectedFace::Right};
   std::vector<Cubie>
       cubies_; // stores all small cubes that make up the rubik's cubeMesh_
 

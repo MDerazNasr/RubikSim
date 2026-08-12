@@ -69,24 +69,29 @@ unsigned int createShaderProgram() {
   const char *fragmentShaderSource =
       "#version 330 core\n"
       "in vec3 vertexNormal;\n"
-      "uniform vec3 cubiePosition;\n"
+      "uniform vec3 frontColor;\n"
+      "uniform vec3 backColor;\n"
+      "uniform vec3 leftColor;\n"
+      "uniform vec3 rightColor;\n"
+      "uniform vec3 topColor;\n"
+      "uniform vec3 bottomColor;\n"
       "out vec4 fragmentColor;\n"
       "void main()\n"
       "{\n"
       " vec3 color = vec3(0.05, 0.05, 0.05);\n"
       "\n"
-      " if (vertexNormal.z > 0.5 && cubiePosition.z > 0.5) {\n"
-      "   color = vec3(0.0, 0.8, 0.1);\n"
-      " } else if (vertexNormal.z < -0.5 && cubiePosition.z < -0.5) {\n"
-      "   color = vec3(0.0, 0.2, 1.0);\n"
-      " } else if (vertexNormal.x < -0.5 && cubiePosition.x < -0.5) {\n"
-      "   color = vec3(1.0, 0.45, 0.0);\n"
-      " } else if (vertexNormal.x > 0.5 && cubiePosition.x > 0.5) {\n"
-      "   color = vec3(0.9, 0.0, 0.0);\n"
-      " } else if (vertexNormal.y > 0.5 && cubiePosition.y > 0.5) {\n"
-      "   color = vec3(1.0, 1.0, 1.0);\n"
-      " } else if (vertexNormal.y < -0.5 && cubiePosition.y < -0.5) {\n"
-      "   color = vec3(1.0, 0.9, 0.0);\n"
+      " if (vertexNormal.z > 0.5) {\n"
+      "   color = frontColor;\n"
+      " } else if (vertexNormal.z < -0.5) {\n"
+      "   color = backColor;\n"
+      " } else if (vertexNormal.x < -0.5) {\n"
+      "   color = leftColor;\n"
+      " } else if (vertexNormal.x > 0.5) {\n"
+      "   color = rightColor;\n"
+      " } else if (vertexNormal.y > 0.5) {\n"
+      "   color = topColor;\n"
+      " } else if (vertexNormal.y < -0.5) {\n"
+      "   color = bottomColor;\n"
       " }\n"
       "\n"
       " vec3 lightDir = normalize(vec3(0.5, 1.0, 0.8));\n"
@@ -202,7 +207,12 @@ void Application::createCubeResources() {
   modelLoc_ = glGetUniformLocation(shaderProgram_, "model");
   viewLoc_ = glGetUniformLocation(shaderProgram_, "view");
   projectionLoc_ = glGetUniformLocation(shaderProgram_, "projection");
-  cubiePositionLoc_ = glGetUniformLocation(shaderProgram_, "cubiePosition");
+  frontColorLoc_ = glGetUniformLocation(shaderProgram_, "frontColor");
+  backColorLoc_ = glGetUniformLocation(shaderProgram_, "backColor");
+  leftColorLoc_ = glGetUniformLocation(shaderProgram_, "leftColor");
+  rightColorLoc_ = glGetUniformLocation(shaderProgram_, "rightColor");
+  topColorLoc_ = glGetUniformLocation(shaderProgram_, "topColor");
+  bottomColorLoc_ = glGetUniformLocation(shaderProgram_, "bottomColor");
 
   cubeMesh_ = std::make_unique<Mesh>(vertices, indices);
   cubies_.clear();
@@ -210,9 +220,24 @@ void Application::createCubeResources() {
   for (int x = -1; x <= 1; ++x) {
     for (int y = -1; y <= 1; ++y) {
       for (int z = -1; z <= 1; ++z) {
-        cubies_.push_back(
-            Cubie{glm::vec3(static_cast<float>(x), static_cast<float>(y),
-                            static_cast<float>(z))});
+        const glm::vec3 black(0.05F, 0.05F, 0.05F);
+        const glm::vec3 green(0.0F, 0.8F, 0.1F);
+        const glm::vec3 blue(0.0F, 0.2F, 1.0F);
+        const glm::vec3 orange(1.0F, 0.45F, 0.0F);
+        const glm::vec3 red(0.9F, 0.0F, 0.0F);
+        const glm::vec3 white(1.0F, 1.0F, 1.0F);
+        const glm::vec3 yellow(1.0F, 0.9F, 0.0F);
+
+        cubies_.push_back(Cubie{
+            glm::vec3(static_cast<float>(x), static_cast<float>(y),
+                      static_cast<float>(z)),
+            z == 1 ? green : black,
+            z == -1 ? blue : black,
+            x == -1 ? orange : black,
+            x == 1 ? red : black,
+            y == 1 ? white : black,
+            y == -1 ? yellow : black,
+        });
       }
     }
   }
@@ -236,10 +261,35 @@ void Application::destroyCubeResources() {
   modelLoc_ = -1;
   viewLoc_ = -1;
   projectionLoc_ = -1;
-  cubiePositionLoc_ = -1;
+
+  frontColorLoc_ = -1;
+  backColorLoc_ = -1;
+  leftColorLoc_ = -1;
+  rightColorLoc_ = -1;
+  topColorLoc_ = -1;
+  bottomColorLoc_ = -1;
 }
 
 void Application::processInput(float deltaTime) {
+  if (glfwGetKey(window_, GLFW_KEY_R) == GLFW_PRESS) {
+    selectedFace_ = SelectedFace::Right;
+  }
+  if (glfwGetKey(window_, GLFW_KEY_L) == GLFW_PRESS) {
+    selectedFace_ = SelectedFace::Left;
+  }
+  if (glfw(window_, GLFW_KEY_U) == GLFW_PRESS) {
+    selectedFace_ = SelectedFace::Top;
+  }
+  if (glfw(window_, GLFW_KEY_D) == GLFW_PRESS) {
+    selectedFace_ = SelectedFace::Bottom;
+  }
+  if (glfwGetKey(window_, GLFW_KEY_F) == GLFW_PRESS) {
+    selectedFace_ = SelectedFace::Front;
+  }
+  if (glfwGetKey(window_, GLFW_KEY_B) == GLFW_PRESS) {
+    selectedFace_ = SelectedFace::Back;
+  }
+
   // if escape is pressed, tell GLFW the window should close
   if (glfwGetKey(window_, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
     glfwSetWindowShouldClose(window_, GLFW_TRUE);
@@ -289,6 +339,9 @@ void Application::processInput(float deltaTime) {
   }
 }
 
+bool Application::isCubieInSelectedFace(const Cubie &cubie) const {
+  // a cubie pos is one of -1, 0, or 1 on each axis
+}
 int Application::run() {
   std::cout << "RubikSim starting...\n";
   while (!glfwWindowShouldClose(window_)) {
@@ -362,9 +415,14 @@ int Application::run() {
       if (modelLoc_ != -1) {
         glUniformMatrix4fv(modelLoc_, 1, GL_FALSE, glm::value_ptr(model));
       }
-      if (cubiePositionLoc_ != -1) {
-        glUniform3fv(cubiePositionLoc_, 1, glm::value_ptr(cubie.position));
-      }
+
+      glUniform3fv(frontColorLoc_, 1, glm::value_ptr(cubie.frontColor));
+      glUniform3fv(backColorLoc_, 1, glm::value_ptr(cubie.backColor));
+      glUniform3fv(leftColorLoc_, 1, glm::value_ptr(cubie.leftColor));
+      glUniform3fv(rightColorLoc_, 1, glm::value_ptr(cubie.rightColor));
+      glUniform3fv(topColorLoc_, 1, glm::value_ptr(cubie.topColor));
+      glUniform3fv(bottomColorLoc_, 1, glm::value_ptr(cubie.bottomColor));
+
       cubeMesh_->draw();
     }
 
