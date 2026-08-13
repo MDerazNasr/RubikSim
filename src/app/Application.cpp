@@ -277,10 +277,10 @@ void Application::processInput(float deltaTime) {
   if (glfwGetKey(window_, GLFW_KEY_L) == GLFW_PRESS) {
     selectedFace_ = SelectedFace::Left;
   }
-  if (glfw(window_, GLFW_KEY_U) == GLFW_PRESS) {
+  if (glfwGetKey(window_, GLFW_KEY_U) == GLFW_PRESS) {
     selectedFace_ = SelectedFace::Top;
   }
-  if (glfw(window_, GLFW_KEY_D) == GLFW_PRESS) {
+  if (glfwGetKey(window_, GLFW_KEY_D) == GLFW_PRESS) {
     selectedFace_ = SelectedFace::Bottom;
   }
   if (glfwGetKey(window_, GLFW_KEY_F) == GLFW_PRESS) {
@@ -339,8 +339,70 @@ void Application::processInput(float deltaTime) {
   }
 }
 
+if (isTurning_) {
+  // radians (90.0F) is a quater turn
+  const float targetAngle = glm::radians(180.0F);
+
+  // turnSpeed controls how fast the face rotates
+  const float turnSpeed = glm::radians(180.0F);
+
+  turnAngle_ += turnSpeed * deltatime;
+
+  if (turnAngle_ >= targetAngle) {
+    turnAngle_ = targetAngle;
+    isTurning_ = false;
+  }
+}
+
 bool Application::isCubieInSelectedFace(const Cubie &cubie) const {
+  if (glfwGetKey(window_, GLFW_KEY_SPACE) == GLFW_PRESS && !isTurning_) {
+    isTurning_ = true;
+    turningFace_ = selectedFace_;
+    turnAngle_ = 0.0F;
+  }
   // a cubie pos is one of -1, 0, or 1 on each axis
+  // x == 1 means right layer
+  // x == -1 means left layer
+  // y == 1 means top layer
+  // y == -1 means bottom layer
+  // z == 1 means front layer
+  // z == -1 means back layer
+  if (selectedFace_ == SelectedFace::Right) {
+    return cubie.position.x == 1.0F;
+  }
+
+  if (selectedFace_ == SelectedFace::Left) {
+    return cubie.position.x == -1.0F;
+  }
+  if (selectedFace_ == SelectedFace::Top) {
+    return cubie.position.y == 1.0F;
+  }
+
+  if (selectedFace_ == SelectedFace::Bottom) {
+    return cubie.position.y == -1.0F;
+  }
+  if (selectedFace_ == SelectedFace::Front) {
+    return cubie.position.z == 1.0F;
+  }
+
+  if (selectedFace_ == SelectedFace::Back) {
+    return cubie.position.z == -1.0F;
+  }
+
+  return false;
+}
+
+glm::vec3 rotationAxisForFace(SelectedFace face) {
+  // A face turn rotates around the acis that points out of that turningFac\
+  //
+  // Right/left roattae around x
+  // top/bottom rotate around y
+  // front/back rotate around z
+  if (face == SelectedFace::Right || face == SelectedFace::Left) {
+    return glm::vec3(1.0F, 0.0F, 0.0F);
+  }
+
+  return glm::vec3(0.0F, 0.0F, 1.0F);
 }
 int Application::run() {
   std::cout << "RubikSim starting...\n";
@@ -403,12 +465,25 @@ int Application::run() {
                          glm::value_ptr(projection));
     }
 
+    const bool cubieIsTurning = isCubieInSelectedFace(cubie) &&
+                                (isTurning_ || turnAngle_ > 0.0F) &&
+                                selectedFace_ == turningFace_;
+
+    const glm::mat4 layerRotation =
+        cubieIsTurning ? glm::rotate(glm::mat4(1.0F), turnAngle_,
+                                     rotationAxisForFace(turningFace_))
+                       : glm::mat4(1.0F);
     const float cubieSpacing = 1.02F;
     const float cubieScale = 0.48F;
 
     for (const Cubie &cubie : cubies_) {
+      // if this cubie is in the selectedFace_ draw is slighly larer
+      // thius is just a visual debug tools
+      // it proves our layer selction logic is correct before we anumate turns
+      // const float selectedScale = isCubieInSelectedFace(cubie) ? 1.50F
+      // : 1.0F;
       const glm::mat4 model =
-          baseRotation *
+          baseRotation * layerRotation *
           glm::translate(glm::mat4(1.0F), cubie.position * cubieSpacing) *
           glm::scale(glm::mat4(1.0F), glm::vec3(cubieScale));
 

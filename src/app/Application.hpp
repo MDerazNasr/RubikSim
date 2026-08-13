@@ -84,8 +84,16 @@ private:
   // the face currently selected for a future move
   // we start with the right face bfecause is the first standard Rubik move
   SelectedFace selectedFace_{SelectedFace::Right};
-  std::vector<Cubie>
-      cubies_; // stores all small cubes that make up the rubik's cubeMesh_
+  // stores all small cubes that make up the rubik's cubeMesh_
+  std::vector<Cubie> cubies_;
+
+  // Face turn anumation state
+  //  isTurning_ tells us whether an anumation is currently running
+  //  turningFace_ stores which face was selected when the turn started
+  //  turnAngle_ stores the current angle in radians
+  bool isTurning_{false};
+  SelectedFace turningFace_{SelectedFace::Right};
+  float turnAngle_{0.0F};
 
   Application(const Application &) = delete;
   Application &operator=(const Application &) = delete;
