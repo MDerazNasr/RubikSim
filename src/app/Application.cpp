@@ -319,6 +319,66 @@ void Application::processInput(float deltaTime) {
     cameraDistance_ += zoomSpeed * deltaTime;
   }
 
+  // Space starts a face turn.
+  //
+  // Important:
+  // We only start a new turn if:
+  // 1. Space is pressed now.
+  // 2. Space was not already pressed last frame.
+  // 3. No turn is currently happening.
+  //
+  // This means one key press creates one clean animation.
+  const bool spaceIsPressed = glfwGetKey(window_, GLFW_KEY_SPACE) == GLFW_PRESS;
+  if (spaceIsPressed && !spaceWasPressed_ && !isTurning_) {
+    // The animation is now active.
+    isTurning_ = true;
+
+    // Freeze which face is turning.
+    //
+    // selectedFace_ can still change later if the user presses R/L/U/D/F/B,
+    // but turningFace_ keeps this animation tied to the original face.
+    turningFace_ = selectedFace_;
+
+    // Start from 0 radians.
+    // The animation update below will increase this over time.
+    turnAngle_ = 0.0F;
+  }
+  spaceWasPressed_ = spaceIsPressed;
+
+  // If a face turn is active, advance the angle a little this frame.
+  if (isTurning_) {
+    // A Rubik's cube face turn is 90 degrees.
+    //
+    // GLM rotation uses radians, so we convert degrees to radians.
+    const float targetAngle = glm::radians(90.0F);
+
+    // This is the turn speed.
+    //
+    // 180 degrees per second means a 90 degree turn takes about half a second.
+    const float turnSpeed = glm::radians(180.0F);
+
+    // Increase the current angle by:
+    // speed * time passed since last frame.
+    //
+    // This makes the animation frame-rate independent.
+    turnAngle_ += turnSpeed * deltaTime;
+
+    // If we reached or passed 90 degrees, clamp exactly to 90.
+    // Without this, the angle might stop at 91.2 or 90.6 depending on frame
+    // time.
+    if (turnAngle_ >= targetAngle) {
+      turnAngle_ = targetAngle;
+
+      // Stop the animation.
+      //
+      // Important limitation:
+      // At this point the cubies are only visually rotated.
+      // In the next section, this is where we will permanently update cubie
+      // positions and sticker orientations.
+      isTurning_ = false;
+    }
+  }
+
   // clamp means keep a value inside a safe range
   // we stop pitch before it goes fully vertical because that can make
   // camera movement confusing
@@ -339,27 +399,7 @@ void Application::processInput(float deltaTime) {
   }
 }
 
-if (isTurning_) {
-  // radians (90.0F) is a quater turn
-  const float targetAngle = glm::radians(180.0F);
-
-  // turnSpeed controls how fast the face rotates
-  const float turnSpeed = glm::radians(180.0F);
-
-  turnAngle_ += turnSpeed * deltatime;
-
-  if (turnAngle_ >= targetAngle) {
-    turnAngle_ = targetAngle;
-    isTurning_ = false;
-  }
-}
-
-bool Application::isCubieInSelectedFace(const Cubie &cubie) const {
-  if (glfwGetKey(window_, GLFW_KEY_SPACE) == GLFW_PRESS && !isTurning_) {
-    isTurning_ = true;
-    turningFace_ = selectedFace_;
-    turnAngle_ = 0.0F;
-  }
+bool Application::isCubieInFace(const Cubie &cubie, SelectedFace face) const {
   // a cubie pos is one of -1, 0, or 1 on each axis
   // x == 1 means right layer
   // x == -1 means left layer
@@ -367,25 +407,25 @@ bool Application::isCubieInSelectedFace(const Cubie &cubie) const {
   // y == -1 means bottom layer
   // z == 1 means front layer
   // z == -1 means back layer
-  if (selectedFace_ == SelectedFace::Right) {
+  if (face == SelectedFace::Right) {
     return cubie.position.x == 1.0F;
   }
 
-  if (selectedFace_ == SelectedFace::Left) {
+  if (face == SelectedFace::Left) {
     return cubie.position.x == -1.0F;
   }
-  if (selectedFace_ == SelectedFace::Top) {
+  if (face == SelectedFace::Top) {
     return cubie.position.y == 1.0F;
   }
 
-  if (selectedFace_ == SelectedFace::Bottom) {
+  if (face == SelectedFace::Bottom) {
     return cubie.position.y == -1.0F;
   }
-  if (selectedFace_ == SelectedFace::Front) {
+  if (face == SelectedFace::Front) {
     return cubie.position.z == 1.0F;
   }
 
-  if (selectedFace_ == SelectedFace::Back) {
+  if (face == SelectedFace::Back) {
     return cubie.position.z == -1.0F;
   }
 
@@ -393,13 +433,16 @@ bool Application::isCubieInSelectedFace(const Cubie &cubie) const {
 }
 
 glm::vec3 rotationAxisForFace(SelectedFace face) {
-  // A face turn rotates around the acis that points out of that turningFac\
+  // A rotation axis is the imaginary line that an object spins around.
   //
-  // Right/left roattae around x
-  // top/bottom rotate around y
-  // front/back rotate around z
+  // If you rotate the Right or Left face, the cubies spin around the X axis.
+  // If you rotate the Top or Bottom face, the cubies spin around the Y axis.
+  // If you rotate the Front or Back face, the cubies spin around the Z axis.
   if (face == SelectedFace::Right || face == SelectedFace::Left) {
     return glm::vec3(1.0F, 0.0F, 0.0F);
+  }
+  if (face == SelectedFace::Top || face == SelectedFace::Bottom) {
+    return glm::vec3(0.0F, 1.0F, 0.0F);
   }
 
   return glm::vec3(0.0F, 0.0F, 1.0F);
@@ -465,23 +508,43 @@ int Application::run() {
                          glm::value_ptr(projection));
     }
 
-    const bool cubieIsTurning = isCubieInSelectedFace(cubie) &&
-                                (isTurning_ || turnAngle_ > 0.0F) &&
-                                selectedFace_ == turningFace_;
-
-    const glm::mat4 layerRotation =
-        cubieIsTurning ? glm::rotate(glm::mat4(1.0F), turnAngle_,
-                                     rotationAxisForFace(turningFace_))
-                       : glm::mat4(1.0F);
     const float cubieSpacing = 1.02F;
     const float cubieScale = 0.48F;
 
     for (const Cubie &cubie : cubies_) {
-      // if this cubie is in the selectedFace_ draw is slighly larer
-      // thius is just a visual debug tools
-      // it proves our layer selction logic is correct before we anumate turns
-      // const float selectedScale = isCubieInSelectedFace(cubie) ? 1.50F
-      // : 1.0F;
+      // Decide whether this specific cubie should receive the layer rotation.
+      //
+      // A cubie should rotate if:
+      // 1. a turn angle is currently visible
+      // 2. it belongs to the face that started the turn
+      //
+      // We use turningFace_, not selectedFace_, because selectedFace_ can
+      // change while the animation is running.
+      const bool cubieIsTurning =
+          turnAngle_ > 0.0F && isCubieInFace(cubie, turningFace_);
+
+      // layerRotation is either:
+      // - a real rotation matrix for cubies in the turning layer
+      // - identity matrix for cubies outside the turning layer
+      //
+      // Identity matrix means "do nothing."
+      const glm::mat4 layerRotation =
+          cubieIsTurning ? glm::rotate(glm::mat4(1.0F), turnAngle_,
+                                       rotationAxisForFace(turningFace_))
+                         : glm::mat4(1.0F);
+
+      // Matrix order matters.
+      //
+      // Written order:
+      // baseRotation * layerRotation * translate * scale
+      //
+      // Applied order to the vertex:
+      // 1. scale the cubie to a small cube
+      // 2. move the cubie to its grid position
+      // 3. rotate the whole selected layer if this cubie is part of it
+      // 4. apply any whole-cube base rotation
+      //
+      // For now, baseRotation is identity, so it does nothing.
       const glm::mat4 model =
           baseRotation * layerRotation *
           glm::translate(glm::mat4(1.0F), cubie.position * cubieSpacing) *

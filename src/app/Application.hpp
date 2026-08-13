@@ -47,11 +47,15 @@ private:
   void destroyCubeResources();
   //
   void processInput(float deltaTime);
-  // the const at the end indicates that the function does not modify the state
-  // of the class it belongs to.  returns true if this cubie belongs to the
-  // currently selected Face we use this before face turn animation so we know
-  // which cubies shoudl move
-  bool isCubieInSelectedFace(const Cubie &cubie) const;
+  // Returns true if this cubie belongs to the requested face.
+  //
+  // The const at the end means this function promises not to modify Application.
+  //
+  // We pass the face in as an argument instead of always using selectedFace_.
+  // Why?
+  // Because selectedFace_ can change while an animation is running, but the
+  // running animation should keep using the face that started the turn.
+  bool isCubieInFace(const Cubie &cubie, SelectedFace face) const;
 
   GLFWwindow *window_;
   // unsigned int means non negative integer
@@ -87,12 +91,37 @@ private:
   // stores all small cubes that make up the rubik's cubeMesh_
   std::vector<Cubie> cubies_;
 
-  // Face turn anumation state
-  //  isTurning_ tells us whether an anumation is currently running
-  //  turningFace_ stores which face was selected when the turn started
-  //  turnAngle_ stores the current angle in radians
+  // Face-turn animation state.
+  //
+  // These variables describe a turn that is happening right now.
+  //
+  // Example:
+  // You select the Right face.
+  // You press Space.
+  // isTurning_ becomes true.
+  // turningFace_ stores Right.
+  // turnAngle_ starts at 0.
+  // Every frame, turnAngle_ increases until it reaches 90 degrees.
   bool isTurning_{false};
+
+  // Tracks whether Space was already down last frame.
+  // Without this, holding Space for a few frames could start the turn more than
+  // once. We want one press to start one animation.
+  bool spaceWasPressed_{false};
+
+  // Stores which face is currently being animated.
+  //
+  // We copy selectedFace_ into turningFace_ when the animation starts.
+  // Why not just use selectedFace_ directly?
+  // Because the user might press another face key while the turn is animating.
+  // The current animation should keep rotating the original face.
   SelectedFace turningFace_{SelectedFace::Right};
+
+  // Current animation angle in radians.
+  //
+  // GLM rotation functions use radians, not degrees.
+  // 0 radians means no rotation.
+  // glm::radians(90.0F) means a quarter turn.
   float turnAngle_{0.0F};
 
   Application(const Application &) = delete;
