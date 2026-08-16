@@ -963,7 +963,7 @@ int Application::run() {
     // We store cameraRight_ and cameraUp_ so mouse drag code can convert
     // screen-space drag into world space turn directions
     const glm::vec3 cameraForward =
-        glm::normalize(glm::cross(cameraForward, glm::vec3(0.0F, 1.0F, 0.0F)));
+        glm::normalize(glm::vec3(0.0F, 0.0F, 0.0F) - cameraPosition);
 
     cameraRight_ =
         glm::normalize(glm::cross(cameraForward, glm::vec3(0.0F, 1.0F, 0.0F)));
@@ -994,17 +994,16 @@ int Application::run() {
                          glm::value_ptr(projection));
     }
 
-    // Centers are closer now, so the Rubik's cube looks connected.
-    // The black outline pass will still keep visible separation.
+    // Centers are close now, so the Rubik's cube looks connected.
+    //
+    // We still leave a tiny gap between cubies.
+    // That gap reveals the dark/internal faces and looks like black separation
+    // lines.
     const float cubieSpacing = 0.50F;
 
     // Colored cubie size.
-    // Slightly smaller than spacing so black borders remain visible.
+    // Slightly smaller than spacing so black gaps remain visible.
     const float cubieScale = 0.46F;
-
-    // Black outline size.
-    // Slightly larger than the colored cubie, but not larger than spacing.
-    const float outlineScale = 0.50F;
 
     for (const Cubie &cubie : cubies_) {
       // Decide whether this specific cubie should receive the layer rotation.
@@ -1042,28 +1041,18 @@ int Application::run() {
       // 4. apply any whole-cube base rotation
       //
       // For now, baseRotation is identity, so it does nothing.
-      const glm::mat4 baseCubieTransform =
+      const glm::mat4 model =
           baseRotation * layerRotation *
-          glm::translate(glm::mat4(1.0F), cubie.position * cubieSpacing);
-
-      // First pass: draw a slightly larger black cube.
-      // This becomes the border/outline visible around the colored cubie.
-      const glm::mat4 outlineModel =
-          baseCubieTransform *
-          glm::scale(glm::mat4(1.0F), glm::vec3(outlineScale));
-
-      glUniformMatrix4fv(modelLoc_, 1, GL_FALSE, glm::value_ptr(outlineModel));
-      glUniform1i(useOverrideColorLoc_, 1);
-      glUniform3f(overrideColorLoc_, 0.0F, 0.0F, 0.0F);
-      cubeMesh_->draw();
-
-      // Second pass: draw the real colored cubie slightly smaller.
-      // This sits on top of the black cube and leaves black edges visible.
-      const glm::mat4 colorModel =
-          baseCubieTransform *
+          glm::translate(glm::mat4(1.0F), cubie.position * cubieSpacing) *
           glm::scale(glm::mat4(1.0F), glm::vec3(cubieScale));
 
-      glUniformMatrix4fv(modelLoc_, 1, GL_FALSE, glm::value_ptr(colorModel));
+      glUniformMatrix4fv(modelLoc_, 1, GL_FALSE, glm::value_ptr(model));
+
+      // Draw normal sticker colors.
+      //
+      // useOverrideColor was used by the failed "draw bigger black cube first"
+      // outline experiment. We keep this set to 0 so the shader uses each
+      // cubie's sticker colors instead of solid black.
       glUniform1i(useOverrideColorLoc_, 0);
 
       glUniform3fv(frontColorLoc_, 1, glm::value_ptr(cubie.frontColor));
