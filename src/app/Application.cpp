@@ -994,8 +994,17 @@ int Application::run() {
                          glm::value_ptr(projection));
     }
 
-    const float cubieSpacing = 1.02F;
-    const float cubieScale = 0.48F;
+    // Centers are closer now, so the Rubik's cube looks connected.
+    // The black outline pass will still keep visible separation.
+    const float cubieSpacing = 0.50F;
+
+    // Colored cubie size.
+    // Slightly smaller than spacing so black borders remain visible.
+    const float cubieScale = 0.46F;
+
+    // Black outline size.
+    // Slightly larger than the colored cubie, but not larger than spacing.
+    const float outlineScale = 0.50F;
 
     for (const Cubie &cubie : cubies_) {
       // Decide whether this specific cubie should receive the layer rotation.
