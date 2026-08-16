@@ -671,7 +671,6 @@ MousePick Application::pickCubie(double mouseX, double mouseY,
 
   const float cubieSpacing = 0.50F;
   const float cubieScale = 0.46F;
-  const float outlineScale = 0.50F;
   const float halfSize = cubieScale * 0.5F;
   float bestDistance = std::numeric_limits<float>::max();
 
@@ -786,6 +785,8 @@ int layerForAxis(const glm::vec3 &position, TurnAxis axis) {
   if (axis == TurnAxis::Z) {
     return static_cast<int>(position.z);
   }
+
+  return 0;
 }
 
 float directionSignForAxis(const glm::vec3 &direction, TurnAxis axis) {
