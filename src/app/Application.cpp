@@ -5,6 +5,7 @@
 // Angle brackets are used here
 #include <ios>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 // give this source file access rto glfw functions
 #define GLFW_INCLUDE_GLCOREARB
@@ -75,6 +76,13 @@ unsigned int createShaderProgram() {
       "uniform vec3 rightColor;\n"
       "uniform vec3 topColor;\n"
       "uniform vec3 bottomColor;\n"
+      "uniform int useOverrideColor;\n"
+      "uniform vec3 overrideColor;\n"
+      "vec3 color = vec3(0.05, 0.05, 0.05);\n"
+      "if (useOverrideColor == 1) {\n}"
+      " fragmentColor = vec4(overrideColor == 1.0);\n"
+      " return;\n"
+      "}\n"
       "out vec4 fragmentColor;\n"
       "void main()\n"
       "{\n"
@@ -214,6 +222,10 @@ void Application::createCubeResources() {
   topColorLoc_ = glGetUniformLocation(shaderProgram_, "topColor");
   bottomColorLoc_ = glGetUniformLocation(shaderProgram_, "bottomColor");
 
+  useOverrideColorLoc_ =
+      glGetUniformLocation(shaderProgram_, "useOverrideColor");
+  overrideColorLoc_ = glGetUniformLocation(shaderProgram_, "overrideColor");
+
   cubeMesh_ = std::make_unique<Mesh>(vertices, indices);
   cubies_.clear();
 
@@ -268,6 +280,9 @@ void Application::destroyCubeResources() {
   rightColorLoc_ = -1;
   topColorLoc_ = -1;
   bottomColorLoc_ = -1;
+
+  useOverrideColorLoc_ = -1;
+  overrideColorLoc_ = -1;
 }
 
 void Application::processInput(float deltaTime) {
@@ -295,26 +310,14 @@ void Application::processInput(float deltaTime) {
     glfwSetWindowShouldClose(window_, GLFW_TRUE);
   }
 
-  // These numbers control how fast the camera moves
-  // The values are multiplied by deltaTime so speed is frame-rate independant
-  const float orbitSpeed_ = 1.5F;
+  // W and S still control zoom for now.
+  // Later we can move zoom to the mouse wheel.
   const float zoomSpeed = 3.0F;
 
-  if (glfwGetKey(window_, GLFW_KEY_LEFT) == GLFW_PRESS) {
-    cameraYaw_ -= orbitSpeed_ * deltaTime;
-  }
-  if (glfwGetKey(window_, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-    cameraYaw_ += orbitSpeed_ * deltaTime;
-  }
-  if (glfwGetKey(window_, GLFW_KEY_UP) == GLFW_PRESS) {
-    cameraPitch_ += orbitSpeed_ * deltaTime;
-  }
-  if (glfwGetKey(window_, GLFW_KEY_DOWN) == GLFW_PRESS) {
-    cameraPitch_ -= orbitSpeed_ * deltaTime;
-  }
   if (glfwGetKey(window_, GLFW_KEY_W) == GLFW_PRESS) {
     cameraDistance_ -= zoomSpeed * deltaTime;
   }
+
   if (glfwGetKey(window_, GLFW_KEY_S) == GLFW_PRESS) {
     cameraDistance_ += zoomSpeed * deltaTime;
   }
@@ -338,6 +341,32 @@ void Application::processInput(float deltaTime) {
     // selectedFace_ can still change later if the user presses R/L/U/D/F/B,
     // but turningFace_ keeps this animation tied to the original face.
     turningFace_ = selectedFace_;
+
+    if (selectedFace_ == SelectedFace::Right) {
+      turningAxis_ = TurnAxis::X;
+      turningLayer_ = 1;
+      turnDirection_ = 1.0F;
+    } else if (selectedFace_ == SelectedFace::Left) {
+      turningAxis_ = TurnAxis::X;
+      turningLayer_ = -1;
+      turnDirection_ = -1.0F;
+    } else if (selectedFace_ == SelectedFace::Top) {
+      turningAxis_ = TurnAxis::Y;
+      turningLayer_ = 1;
+      turnDirection_ = 1.0F;
+    } else if (selectedFace_ == SelectedFace::Bottom) {
+      turningAxis_ = TurnAxis::Y;
+      turningLayer_ = -1;
+      turnDirection_ = -1.0F;
+    } else if (selectedFace_ == SelectedFace::Front) {
+      turningAxis_ = TurnAxis::Z;
+      turningLayer_ = 1;
+      turnDirection_ = 1.0F;
+    } else {
+      turningAxis_ = TurnAxis::Z;
+      turningLayer_ = -1;
+      turnDirection_ = -1.0F;
+    }
 
     // Start from 0 radians.
     // The animation update below will increase this over time.
@@ -369,12 +398,21 @@ void Application::processInput(float deltaTime) {
     if (turnAngle_ >= targetAngle) {
       turnAngle_ = targetAngle;
 
-      // Stop the animation.
+      // Commit the finished move to the actual cube data.
       //
-      // Important limitation:
-      // At this point the cubies are only visually rotated.
-      // In the next section, this is where we will permanently update cubie
-      // positions and sticker orientations.
+      // Until this call, the turn only exists as a temporary drawing matrix.
+      // After this call, cubie positions and sticker colors store the turn.
+      applyTurnToCubeState();
+
+      // Reset the temporary visual animation.
+      //
+      // Why reset to 0?
+      // Because the cubies' stored positions now contain the finished turn.
+      // If we kept turnAngle_ at 90 degrees, we would draw the same turn twice:
+      // once from state, once from animation.
+      turnAngle_ = 0.0F;
+
+      // Stop the animation.
       isTurning_ = false;
     }
   }
@@ -447,6 +485,439 @@ glm::vec3 rotationAxisForFace(SelectedFace face) {
 
   return glm::vec3(0.0F, 0.0F, 1.0F);
 }
+
+glm::vec3 rotationAxisForTurnAxis(TurnAxis axis) {
+  if (axis == TurnAxis::X) {
+    return glm::vec3(1.0F, 0.0F, 0.0F);
+  }
+
+  if (axis == TurnAxis::Y) {
+    return glm::vec3(0.0F, 1.0F, 0.0F);
+  }
+
+  return glm::vec3(0.0F, 0.0F, 1.0F);
+}
+
+bool Application::isCubieInTurningLayer(const Cubie &cubie) const {
+  // turningAxis_ chooses which coordinate we inspect.
+  // turningLayer_ chooses which slice moves.
+  //
+  // Example:
+  // axis X, layer 1 means every cubie where x == 1.
+  // axis Y, layer 0 means every cubie where y == 0.
+  // axis Z, layer -1 means every cubie where z == -1.
+  if (turningAxis_ == TurnAxis::X) {
+    return static_cast<int>(cubie.position.x) == turningLayer_;
+  }
+
+  if (turningAxis_ == TurnAxis::Y) {
+    return static_cast<int>(cubie.position.y) == turningLayer_;
+  }
+
+  return static_cast<int>(cubie.position.z) == turningLayer_;
+}
+
+void Application::applyTurnToCubeState() {
+  // A finished turn has three parts:
+  //
+  // 1. Which axis the layer rotated around: X, Y, or Z.
+  // 2. Which layer moved on that axis: -1, 0, or 1.
+  // 3. Which direction it rotated: +1 or -1.
+  //
+  // The draw loop used those values to rotate the layer visually.
+  // This function uses the same values to update the real cube data.
+  const bool positiveTurn = turnDirection_ > 0.0F;
+
+  for (Cubie &cubie : cubies_) {
+    if (!isCubieInTurningLayer(cubie)) {
+      continue;
+    }
+
+    const float oldX = cubie.position.x;
+    const float oldY = cubie.position.y;
+    const float oldZ = cubie.position.z;
+
+    const glm::vec3 oldFront = cubie.frontColor;
+    const glm::vec3 oldBack = cubie.backColor;
+    const glm::vec3 oldLeft = cubie.leftColor;
+    const glm::vec3 oldRight = cubie.rightColor;
+    const glm::vec3 oldTop = cubie.topColor;
+    const glm::vec3 oldBottom = cubie.bottomColor;
+
+    if (turningAxis_ == TurnAxis::X) {
+      // Rotate position around X.
+      //
+      // X stays fixed because this layer spins around the X axis.
+      if (positiveTurn) {
+        cubie.position.y = -oldZ;
+        cubie.position.z = oldY;
+
+        // Sticker colors rotate with the cubie.
+        //
+        // A +90 X turn moves:
+        // top -> front
+        // front -> bottom
+        // bottom -> back
+        // back -> top
+        cubie.topColor = oldBack;
+        cubie.frontColor = oldTop;
+        cubie.bottomColor = oldFront;
+        cubie.backColor = oldBottom;
+      } else {
+        cubie.position.y = oldZ;
+        cubie.position.z = -oldY;
+
+        // A -90 X turn is the opposite cycle.
+        cubie.topColor = oldFront;
+        cubie.backColor = oldTop;
+        cubie.bottomColor = oldBack;
+        cubie.frontColor = oldBottom;
+      }
+
+      cubie.leftColor = oldLeft;
+      cubie.rightColor = oldRight;
+    } else if (turningAxis_ == TurnAxis::Y) {
+      // Rotate position around Y.
+      //
+      // Y stays fixed because this layer spins around the Y axis.
+      if (positiveTurn) {
+        cubie.position.x = oldZ;
+        cubie.position.z = -oldX;
+
+        // A +90 Y turn moves:
+        // front -> right
+        // right -> back
+        // back -> left
+        // left -> front
+        cubie.frontColor = oldLeft;
+        cubie.rightColor = oldFront;
+        cubie.backColor = oldRight;
+        cubie.leftColor = oldBack;
+      } else {
+        cubie.position.x = -oldZ;
+        cubie.position.z = oldX;
+
+        // A -90 Y turn is the opposite cycle.
+        cubie.frontColor = oldRight;
+        cubie.leftColor = oldFront;
+        cubie.backColor = oldLeft;
+        cubie.rightColor = oldBack;
+      }
+
+      cubie.topColor = oldTop;
+      cubie.bottomColor = oldBottom;
+    } else {
+      // Rotate position around Z.
+      //
+      // Z stays fixed because this layer spins around the Z axis.
+      if (positiveTurn) {
+        cubie.position.x = -oldY;
+        cubie.position.y = oldX;
+
+        // A +90 Z turn moves:
+        // right -> top
+        // top -> left
+        // left -> bottom
+        // bottom -> right
+        cubie.rightColor = oldBottom;
+        cubie.topColor = oldRight;
+        cubie.leftColor = oldTop;
+        cubie.bottomColor = oldLeft;
+      } else {
+        cubie.position.x = oldY;
+        cubie.position.y = -oldX;
+
+        // A -90 Z turn is the opposite cycle.
+        cubie.rightColor = oldTop;
+        cubie.bottomColor = oldRight;
+        cubie.leftColor = oldBottom;
+        cubie.topColor = oldLeft;
+      }
+
+      cubie.frontColor = oldFront;
+      cubie.backColor = oldBack;
+    }
+  }
+}
+
+MousePick Application::pickCubie(double mouseX, double mouseY,
+                                 const glm::mat4 &view,
+                                 const glm::mat4 &projection, int displayW,
+                                 int displayH) const {
+  MousePick bestPick;
+
+  if (displayW <= 0 || displayH <= 0) {
+    return bestPick;
+  }
+
+  // Convert a 2D mouse position into a 3D ray.
+  //
+  // GLFW mouse y starts at the top of the window.
+  // OpenGL viewport y starts at the bottom.
+  // That is why we use displayH - mouseY.
+  const glm::vec4 viewport(0.0F, 0.0F, static_cast<float>(displayW),
+                           static_cast<float>(displayH));
+  const glm::vec3 nearPoint =
+      glm::unProject(glm::vec3(static_cast<float>(mouseX),
+                               static_cast<float>(displayH - mouseY), 0.0F),
+                     view, projection, viewport);
+  const glm::vec3 farPoint =
+      glm::unProject(glm::vec3(static_cast<float>(mouseX),
+                               static_cast<float>(displayH - mouseY), 1.0F),
+                     view, projection, viewport);
+
+  const glm::vec3 rayOrigin = nearPoint;
+  const glm::vec3 rayDirection = glm::normalize(farPoint - nearPoint);
+
+  const float cubieSpacing = 0.50F;
+  const float cubieScale = 0.46F;
+  const float outlineScale = 0.50F;
+  const float halfSize = cubieScale * 0.5F;
+  float bestDistance = std::numeric_limits<float>::max();
+
+  for (const Cubie &cubie : cubies_) {
+    const glm::vec3 center = cubie.position * cubieSpacing;
+    const glm::vec3 boxMin = center - glm::vec3(halfSize);
+    const glm::vec3 boxMax = center + glm::vec3(halfSize);
+
+    float tMin = 0.0F;
+    float tMax = bestDistance;
+    bool hit = true;
+
+    for (int axis = 0; axis < 3; ++axis) {
+      const float origin = rayOrigin[axis];
+      const float direction = rayDirection[axis];
+
+      if (std::abs(direction) < 0.0001F) {
+        if (origin < boxMin[axis] || origin > boxMax[axis]) {
+          hit = false;
+          break;
+        }
+        continue;
+      }
+
+      float t1 = (boxMin[axis] - origin) / direction;
+      float t2 = (boxMax[axis] - origin) / direction;
+
+      if (t1 > t2) {
+        const float temp = t1;
+        t1 = t2;
+        t2 = temp;
+      }
+
+      if (t1 > tMin) {
+        tMin = t1;
+      }
+
+      if (t2 < tMax) {
+        tMax = t2;
+      }
+
+      if (tMin > tMax) {
+        hit = false;
+        break;
+      }
+    }
+
+    if (!hit || tMin < 0.0F || tMin >= bestDistance) {
+      continue;
+    }
+
+    const glm::vec3 hitPoint = rayOrigin + rayDirection * tMin;
+    const glm::vec3 localHit = hitPoint - center;
+    glm::vec3 faceNormal(0.0F);
+
+    const float absX = std::abs(localHit.x);
+    const float absY = std::abs(localHit.y);
+    const float absZ = std::abs(localHit.z);
+
+    if (absX >= absY && absX >= absZ) {
+      faceNormal.x = localHit.x >= 0.0F ? 1.0F : -1.0F;
+    } else if (absY >= absX && absY >= absZ) {
+      faceNormal.y = localHit.y >= 0.0F ? 1.0F : -1.0F;
+    } else {
+      faceNormal.z = localHit.z >= 0.0F ? 1.0F : -1.0F;
+    }
+
+    bestDistance = tMin;
+    bestPick.hit = true;
+    bestPick.cubiePosition = cubie.position;
+    bestPick.faceNormal = faceNormal;
+    bestPick.distance = tMin;
+  }
+
+  return bestPick;
+}
+
+TurnAxis strongAxisFromVector(const glm::vec3 &direction) {
+  // this function answers - which world axis is this direction closest to
+  // Example:
+  // direction is mostly left/right in world space -> X
+  // direction is mostly up/down in world space    -> Y
+  // direction is mostly front/back in world space -> Z
+  const glm::vec3 absoluteDirection(
+      std::abs(direction.x), std::abs(direction.y), std::abs(direction.z));
+
+  if (absoluteDirection.x >= absoluteDirection.y &&
+      absoluteDirection.x >= absoluteDirection.z) {
+    return TurnAxis::X;
+  }
+
+  if (absoluteDirection.y >= absoluteDirection.x &&
+      absoluteDirection.y >= absoluteDirection.z) {
+    return TurnAxis::Y;
+  }
+
+  return TurnAxis::Z;
+}
+
+int layerForAxis(const glm::vec3 &position, TurnAxis axis) {
+  // The clicked cubie tells us which layer to turn
+  // if axis is x we turn the clicked cubies x layer
+  // if axis is y we turn the clicked cubies y layer
+  // if axis is z we turn the clicked cubies z layer
+
+  if (axis == TurnAxis::X) {
+    return static_cast<int>(position.x);
+  }
+  if (axis == TurnAxis::Y) {
+    return static_cast<int>(position.y);
+  }
+  if (axis == TurnAxis::Z) {
+    return static_cast<int>(position.z);
+  }
+}
+
+float directionSignForAxis(const glm::vec3 &direction, TurnAxis axis) {
+  // a drag direction may point along the positive or negative side of the
+  // chosen world axis we return +1 or -1 so the animation knows which way to
+  // rotate
+  float value = direction.x;
+
+  if (axis == TurnAxis::Y) {
+    value = direction.y;
+  } else if (axis == TurnAxis::Z) {
+    value = direction.z;
+  }
+
+  return value >= 0.0F ? 1.0F : -1.0F;
+}
+
+void Application::processMouseInput(const glm::mat4 &view,
+                                    const glm::mat4 &projection, int displayW,
+                                    int displayH) {
+  double mouseX = 0.0;
+  double mouseY = 0.0;
+  glfwGetCursorPos(window_, &mouseX, &mouseY);
+
+  const bool leftMouseDown =
+      glfwGetMouseButton(window_, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+
+  if (leftMouseDown && !isDraggingCamera_ && !isDraggingCube_) {
+    activePick_ =
+        pickCubie(mouseX, mouseY, view, projection, displayW, displayH);
+
+    if (activePick_.hit) {
+      // The drag started on a cubie, so this drag belongs to the cube.
+      //
+      // We do not immediately turn. We wait until the mouse moves far enough
+      // to tell whether the drag is mostly horizontal or mostly vertical.
+      isDraggingCube_ = true;
+      hasStartedMouseTurn_ = false;
+      dragStartX_ = mouseX;
+      dragStartY_ = mouseY;
+    } else {
+      // The drag started in empty space, so this drag orbits the camera.
+      isDraggingCamera_ = true;
+      lastMouseX_ = mouseX;
+      lastMouseY_ = mouseY;
+    }
+  }
+
+  if (leftMouseDown && isDraggingCamera_) {
+    const double dx = mouseX - lastMouseX_;
+    const double dy = mouseY - lastMouseY_;
+    const float mouseSensitivity = 0.005F;
+
+    cameraYaw_ += static_cast<float>(dx) * mouseSensitivity;
+    cameraPitch_ -= static_cast<float>(dy) * mouseSensitivity;
+
+    lastMouseX_ = mouseX;
+    lastMouseY_ = mouseY;
+  }
+
+  if (leftMouseDown && isDraggingCube_ && !hasStartedMouseTurn_ &&
+      !isTurning_) {
+    // Mouse movement since the cubie was clicked.
+    const double dx = mouseX - dragStartX_;
+    const double dy = mouseY - dragStartY_;
+
+    // Do not start a turn from tiny mouse movement.
+    // This prevents accidental turns from a small hand shake.
+    const double dragDistance = std::sqrt(dx * dx + dy * dy);
+    const double dragThreshold = 8.0;
+
+    if (dragDistance >= dragThreshold) {
+      // Decide whether this gesture is mostly horizontal or mostly vertical.
+      //
+      // Horizontal drag should feel like "move this row left/right."
+      // Vertical drag should feel like "move this column up/down."
+      const bool horizontalDrag = std::abs(dx) > std::abs(dy);
+
+      // Convert the 2D screen drag into a 3D world direction.
+      //
+      // If the user dragged horizontally:
+      //   use cameraRight_, with sign based on left/right.
+      //
+      // If the user dragged vertically:
+      //   use cameraUp_, with sign based on up/down.
+      //
+      // Important:
+      // Window y coordinates increase downward.
+      // So dy < 0 means the mouse moved up.
+      glm::vec3 worldDragDirection(0.0F);
+
+      if (horizontalDrag) {
+        worldDragDirection =
+            static_cast<float>(dx >= 0.0 ? 1.0 : -1.0) * cameraRight_;
+      } else {
+        worldDragDirection =
+            static_cast<float>(dy <= 0.0 ? 1.0 : -1.0) * cameraUp_;
+      }
+
+      // Choose the world axis that best matches the drag direction.
+      //
+      // Example:
+      // If cameraRight_ currently points mostly along X,
+      // horizontal drag turns an X-related layer.
+      //
+      // If cameraUp_ currently points mostly along Y,
+      // vertical drag turns a Y-related layer.
+      turningAxis_ = strongAxisFromVector(worldDragDirection);
+
+      // Turn the layer that contains the clicked cubie.
+      turningLayer_ = layerForAxis(activePick_.cubiePosition, turningAxis_);
+
+      // Choose +1 or -1 based on whether the drag points along the positive
+      // or negative side of that axis.
+      turnDirection_ = directionSignForAxis(worldDragDirection, turningAxis_);
+
+      // Start the animation.
+      isTurning_ = true;
+      turnAngle_ = 0.0F;
+
+      // Prevent this same drag from starting multiple turns.
+      hasStartedMouseTurn_ = true;
+    }
+  }
+
+  if (!leftMouseDown) {
+    isDraggingCamera_ = false;
+    isDraggingCube_ = false;
+    hasStartedMouseTurn_ = false;
+  }
+}
+
 int Application::run() {
   std::cout << "RubikSim starting...\n";
   while (!glfwWindowShouldClose(window_)) {
@@ -485,6 +956,19 @@ int Application::run() {
         cameraDistance_ * std::sin(cameraPitch_),
         cameraDistance_ * std::cos(cameraPitch_) * std::cos(cameraYaw_));
 
+    // build camera basis vectors for this frame
+    // cameraForward points from the camera toward the cube
+    // cameraRight points to the right side of the screen
+    // cameraUp points to the top side of the screen
+    // We store cameraRight_ and cameraUp_ so mouse drag code can convert
+    // screen-space drag into world space turn directions
+    const glm::vec3 cameraForward =
+        glm::normalize(glm::cross(cameraForward, glm::vec3(0.0F, 1.0F, 0.0F)));
+
+    cameraRight_ =
+        glm::normalize(glm::cross(cameraForward, glm::vec3(0.0F, 1.0F, 0.0F)));
+    cameraUp_ = glm::normalize(glm::cross(cameraRight_, cameraForward));
+
     // lookAt creates a camera view matrix
     // first argument: whre the camera is
     // second argument: what the camera looks at
@@ -499,6 +983,8 @@ int Application::run() {
             : (800.0F / 600.0F);
     const glm::mat4 projection =
         glm::perspective(glm::radians(45.0F), aspect, 0.1F, 100.0F);
+
+    processMouseInput(view, projection, displayW, displayH);
 
     if (viewLoc_ != -1) {
       glUniformMatrix4fv(viewLoc_, 1, GL_FALSE, glm::value_ptr(view));
@@ -516,12 +1002,13 @@ int Application::run() {
       //
       // A cubie should rotate if:
       // 1. a turn angle is currently visible
-      // 2. it belongs to the face that started the turn
+      // 2. it belongs to the moving axis/layer
       //
-      // We use turningFace_, not selectedFace_, because selectedFace_ can
-      // change while the animation is running.
+      // This works for both:
+      // - keyboard fallback turns on outer faces
+      // - mouse drag turns on rows, columns, and depth layers
       const bool cubieIsTurning =
-          turnAngle_ > 0.0F && isCubieInFace(cubie, turningFace_);
+          turnAngle_ > 0.0F && isCubieInTurningLayer(cubie);
 
       // layerRotation is either:
       // - a real rotation matrix for cubies in the turning layer
@@ -529,9 +1016,10 @@ int Application::run() {
       //
       // Identity matrix means "do nothing."
       const glm::mat4 layerRotation =
-          cubieIsTurning ? glm::rotate(glm::mat4(1.0F), turnAngle_,
-                                       rotationAxisForFace(turningFace_))
-                         : glm::mat4(1.0F);
+          cubieIsTurning
+              ? glm::rotate(glm::mat4(1.0F), turnDirection_ * turnAngle_,
+                            rotationAxisForTurnAxis(turningAxis_))
+              : glm::mat4(1.0F);
 
       // Matrix order matters.
       //
@@ -545,14 +1033,29 @@ int Application::run() {
       // 4. apply any whole-cube base rotation
       //
       // For now, baseRotation is identity, so it does nothing.
-      const glm::mat4 model =
+      const glm::mat4 baseCubieTransform =
           baseRotation * layerRotation *
-          glm::translate(glm::mat4(1.0F), cubie.position * cubieSpacing) *
+          glm::translate(glm::mat4(1.0F), cubie.position * cubieSpacing);
+
+      // First pass: draw a slightly larger black cube.
+      // This becomes the border/outline visible around the colored cubie.
+      const glm::mat4 outlineModel =
+          baseCubieTransform *
+          glm::scale(glm::mat4(1.0F), glm::vec3(outlineScale));
+
+      glUniformMatrix4fv(modelLoc_, 1, GL_FALSE, glm::value_ptr(outlineModel));
+      glUniform1i(useOverrideColorLoc_, 1);
+      glUniform3f(overrideColorLoc_, 0.0F, 0.0F, 0.0F);
+      cubeMesh_->draw();
+
+      // Second pass: draw the real colored cubie slightly smaller.
+      // This sits on top of the black cube and leaves black edges visible.
+      const glm::mat4 colorModel =
+          baseCubieTransform *
           glm::scale(glm::mat4(1.0F), glm::vec3(cubieScale));
 
-      if (modelLoc_ != -1) {
-        glUniformMatrix4fv(modelLoc_, 1, GL_FALSE, glm::value_ptr(model));
-      }
+      glUniformMatrix4fv(modelLoc_, 1, GL_FALSE, glm::value_ptr(colorModel));
+      glUniform1i(useOverrideColorLoc_, 0);
 
       glUniform3fv(frontColorLoc_, 1, glm::value_ptr(cubie.frontColor));
       glUniform3fv(backColorLoc_, 1, glm::value_ptr(cubie.backColor));

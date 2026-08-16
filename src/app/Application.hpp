@@ -30,6 +30,32 @@ struct Cubie {
 // we can write readable code -> SelectedFace::Right, SelectedFace::Face
 enum class SelectedFace { Right, Left, Top, Bottom, Front, Back };
 
+// A turn can happen around one of the three world axes.
+//
+// X axis turns left/right layers.
+// Y axis turns top/bottom layers.
+// Z axis turns front/back layers.
+enum class TurnAxis { X, Y, Z };
+
+struct MousePick {
+  // hit is false when the mouse ray does not touch any cubie.
+  bool hit{false};
+
+  // Grid position of the cubie that was clicked.
+  glm::vec3 cubiePosition{0.0F};
+
+  // Direction of the clicked face.
+  // Examples:
+  // front face = (0, 0, 1)
+  // right face = (1, 0, 0)
+  // top face = (0, 1, 0)
+  glm::vec3 faceNormal{0.0F};
+
+  // Distance from the camera ray origin to the hit.
+  // If several cubies are under the mouse, we keep the closest one.
+  float distance{0.0F};
+};
+
 // declares a class named Application
 class Application {
   // everything after public is accessible from outsde the class
@@ -47,15 +73,31 @@ private:
   void destroyCubeResources();
   //
   void processInput(float deltaTime);
+  void processMouseInput(const glm::mat4 &view, const glm::mat4 &projection,
+                         int displayW, int displayH);
+
+  MousePick pickCubie(double mouseX, double mouseY, const glm::mat4 &view,
+                      const glm::mat4 &projection, int displayW,
+                      int displayH) const;
+
   // Returns true if this cubie belongs to the requested face.
   //
-  // The const at the end means this function promises not to modify Application.
+  // The const at the end means this function promises not to modify
+  // Application.
   //
   // We pass the face in as an argument instead of always using selectedFace_.
   // Why?
   // Because selectedFace_ can change while an animation is running, but the
   // running animation should keep using the face that started the turn.
   bool isCubieInFace(const Cubie &cubie, SelectedFace face) const;
+  bool isCubieInTurningLayer(const Cubie &cubie) const;
+
+  // Permanently applies the finished 90 degree turn to cubie data.
+  //
+  // The animation only changes how cubies are drawn.
+  // This function changes the actual stored cubie.position values and sticker
+  // colors so the cube remembers the move.
+  void applyTurnToCubeState();
 
   GLFWwindow *window_;
   // unsigned int means non negative integer
@@ -75,6 +117,9 @@ private:
   int topColorLoc_{-1};
   int bottomColorLoc_{-1};
 
+  int useOverrideColorLoc_{-1};
+  int overrideColorLoc_{-1};
+
   // camera orbit values
   // yaw rotates left/right around the cubes
   // pitch rotates up/down
@@ -82,6 +127,42 @@ private:
   float cameraYaw_{0.8F};
   float cameraPitch_{0.5F};
   float cameraDistance_{6.0F};
+
+  // camera basis vectors for the current 15:54
+  // cameraRight_ points to the right side of the screen in world space
+  // cameraUp_ points to the top of the screen in world space
+  // we use these to convert a 2d mouse frag into a 3d cube turn
+  //
+  // Example
+  // if the user drags horizontally we compare that gesture with cameraRight_
+  // if the user drags vertically we compare that gesture with cameraUp_
+  glm::vec3 cameraRight_{1.0F, 0.0F, 0.0F};
+  glm::vec3 cameraUp_{0.0F, 1.0F, 0.0F};
+
+  // Mouse camera-drag state.
+  //
+  // When the left mouse button is held down, we compare the current mouse
+  // position with the previous mouse position.
+  // The difference is called mouse delta.
+  //
+  // mouse delta x changes cameraYaw_.
+  // mouse delta y changes cameraPitch_.
+  bool isDraggingCamera_{false};
+  double lastMouseX_{0.0};
+  double lastMouseY_{0.0};
+
+  // Mouse cube-drag state.
+  //
+  // A mouse drag can mean two different things:
+  // 1. drag empty space: orbit the camera
+  // 2. drag from a cubie: turn a row/column/layer
+  //
+  // activePick_ stores what cubie face the drag started on.
+  bool isDraggingCube_{false};
+  bool hasStartedMouseTurn_{false};
+  double dragStartX_{0.0};
+  double dragStartY_{0.0};
+  MousePick activePick_;
 
   // used to calc deltaTime
   float lastFrameTime_{0.0F};
@@ -116,6 +197,15 @@ private:
   // Because the user might press another face key while the turn is animating.
   // The current animation should keep rotating the original face.
   SelectedFace turningFace_{SelectedFace::Right};
+
+  // Generic turn description.
+  //
+  // turningAxis_ tells us which axis the layer spins around.
+  // turningLayer_ tells us which layer on that axis moves. It is -1, 0, or 1.
+  // turnDirection_ is +1 or -1 and controls clockwise/counter-clockwise.
+  TurnAxis turningAxis_{TurnAxis::X};
+  int turningLayer_{1};
+  float turnDirection_{1.0F};
 
   // Current animation angle in radians.
   //
