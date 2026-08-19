@@ -110,9 +110,9 @@ unsigned int createShaderProgram() {
       " vec3 shadedColor = color * (0.45 + 0.55 * diff);\n"
       "\n"
       " if (highlightEnabled == 1 &&\n"
-      "     distance(cubiePosition,highlightedCubiePosition) < 0.01 &&\n"
-      "     dot(vertexNormal,highlightedFaceNormal) > 0.5) {\n"
-      "   shadedColor = mix(shadedColor, vec3(1.0,1.0, 1.0), 0.45);\n"
+      "     distance(cubiePosition, highlightedCubiePosition) < 0.01 &&\n"
+      "     dot(vertexNormal, highlightedFaceNormal) > 0.5) {\n"
+      "   shadedColor = mix(shadedColor, vec3(1.0, 1.0, 0.2), 0.65);\n"
       " }\n"
       " fragmentColor = vec4(shadedColor, 1.0);\n"
       "}\n";
@@ -688,15 +688,44 @@ MousePick Application::pickCubie(double mouseX, double mouseY,
   // GLFW mouse y starts at the top of the window.
   // OpenGL viewport y starts at the bottom.
   // That is why we use displayH - mouseY.
+  //
+  // Important macOS/Retina detail:
+  // glfwGetCursorPos gives mouse coordinates in window coordinates.
+  // glViewport uses framebuffer coordinates.
+  //
+  // On a normal display those are often the same size.
+  // On a Retina display the framebuffer can be 2x larger than the window.
+  //
+  // So before unProject, we scale the mouse position from window space into
+  // framebuffer space. Without this, the picking ray can be offset and miss the
+  // cube, which makes hover highlighting look like it is not working.
+  int windowW = 0;
+  int windowH = 0;
+  glfwGetWindowSize(window_, &windowW, &windowH);
+  if (windowW <= 0 || windowH <= 0) {
+    return bestPick;
+  }
+
+  const float framebufferMouseX =
+      static_cast<float>(mouseX) * static_cast<float>(displayW) /
+      static_cast<float>(windowW);
+  const float framebufferMouseY =
+      static_cast<float>(mouseY) * static_cast<float>(displayH) /
+      static_cast<float>(windowH);
+
   const glm::vec4 viewport(0.0F, 0.0F, static_cast<float>(displayW),
                            static_cast<float>(displayH));
   const glm::vec3 nearPoint =
-      glm::unProject(glm::vec3(static_cast<float>(mouseX),
-                               static_cast<float>(displayH - mouseY), 0.0F),
+      glm::unProject(glm::vec3(framebufferMouseX,
+                               static_cast<float>(displayH) -
+                                   framebufferMouseY,
+                               0.0F),
                      view, projection, viewport);
   const glm::vec3 farPoint =
-      glm::unProject(glm::vec3(static_cast<float>(mouseX),
-                               static_cast<float>(displayH - mouseY), 1.0F),
+      glm::unProject(glm::vec3(framebufferMouseX,
+                               static_cast<float>(displayH) -
+                                   framebufferMouseY,
+                               1.0F),
                      view, projection, viewport);
 
   const glm::vec3 rayOrigin = nearPoint;
