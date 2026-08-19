@@ -78,6 +78,10 @@ unsigned int createShaderProgram() {
       "uniform vec3 bottomColor;\n"
       "uniform int useOverrideColor;\n"
       "uniform vec3 overrideColor;\n"
+      "uniform vec3 cubiePosition;\n"
+      "uniform int highlightEnabled;\n"
+      "uniform vec3 highlightedCubiePosition;\n"
+      "uniform vec3 highlightedFaceNormal;\n"
       "out vec4 fragmentColor;\n"
       "void main()\n"
       "{\n"
@@ -103,18 +107,15 @@ unsigned int createShaderProgram() {
       "\n"
       " vec3 lightDir = normalize(vec3(0.5, 1.0, 0.8));\n"
       " float diff = max(dot(vertexNormal, lightDir), 0.0);\n"
-      "uniform vec3 cubiePosition;\n"
-      "uniform int highlightEnabled;\n"
-      "uniform vec3 highlightedCubiePosition;\n"
-      "uniform vec3 highlightedFaceNormal\n"
       " vec3 shadedColor = color * (0.45 + 0.55 * diff);\n"
       "\n"
       " if (highlightEnabled == 1 &&\n"
       "     distance(cubiePosition,highlightedCubiePosition) < 0.01 &&\n"
       "     dot(vertexNormal,highlightedFaceNormal) > 0.5) {\n"
       "   shadedColor = mix(shadedColor, vec3(1.0,1.0, 1.0), 0.45);\n"
-      "}\n"
+      " }\n"
       " fragmentColor = vec4(shadedColor, 1.0);\n"
+      "}\n";
       /*
        *   What this means:
 

@@ -130,6 +130,7 @@ private:
   // Tells the shader whether hover highlighting is active this frame
   // 0 means no hover
   // 1 means brighten the hovered faceNormal
+  int highlightEnabledLoc_{-1};
   int highlightedCubiePositionLoc_{-1};
 
   // the face direction currently undser the mouseX
