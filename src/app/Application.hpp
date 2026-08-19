@@ -120,6 +120,24 @@ private:
   int useOverrideColorLoc_{-1};
   int overrideColorLoc_{-1};
 
+  // sends the current cubies grid position to the shaderProgram_
+  // example:\
+  // left op front cubue position is (-1,1,1)
+  // the shader uses this to know whether the cubie being drawn is the same
+  // cubie thayt the mouse is hovering over
+  int cubiePositionLoc_{-1};
+
+  // Tells the shader whether hover highlighting is active this frame
+  // 0 means no hover
+  // 1 means brighten the hovered faceNormal
+  int highlightedCubiePositionLoc_{-1};
+
+  // the face direction currently undser the mouseX
+  // front face = (0,0,1)
+  // right face (1,0,0)
+  // top face = (0,0,0)
+  int highlightedFaceNormalLoc_{-1};
+
   // camera orbit values
   // yaw rotates left/right around the cubes
   // pitch rotates up/down
@@ -163,6 +181,12 @@ private:
   double dragStartX_{0.0};
   double dragStartY_{0.0};
   MousePick activePick_;
+
+  // stores the cubie face currently under the mouseX
+  // this is seperate from activePick_
+  // activePick_ means - where did the click drag start?
+  // hoverPick_ means - what face is the mouse over right now
+  MousePick hoverPick_;
 
   // used to calc deltaTime
   float lastFrameTime_{0.0F};

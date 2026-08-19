@@ -103,10 +103,29 @@ unsigned int createShaderProgram() {
       "\n"
       " vec3 lightDir = normalize(vec3(0.5, 1.0, 0.8));\n"
       " float diff = max(dot(vertexNormal, lightDir), 0.0);\n"
+      "uniform vec3 cubiePosition;\n"
+      "uniform int highlightEnabled;\n"
+      "uniform vec3 highlightedCubiePosition;\n"
+      "uniform vec3 highlightEnabled\n"
       " vec3 shadedColor = color * (0.45 + 0.55 * diff);\n"
-      " fragmentColor = vec4(shadedColor, 1.0);\n"
+      "\n"
+      " if (highlightEnabled == 1 &&\n"
+      "     distance(cubiePosition,highlightedCubiePosition) < 0.01 &&\n"
+      "     dot(vertexNormal,highlightedFaceNormal) > 0.5) {\n"
+      "   shadedColor = mix(shadedColor, vec3(1.0,1.0, 1.0), 0.45);\n"
       "}\n";
+  /*
+   *   What this means:
 
+    distance(cubiePosition, highlightedCubiePosition) < 0.01
+
+    checks that we are drawing the hovered cubie.
+
+    dot(vertexNormal, highlightedFaceNormal) > 0.5
+
+    checks that we are drawing the exact hovered face, not the whole
+    cubie.
+  */
   const unsigned int vertexShader =
       compileShader(GL_VERTEX_SHADER, vertexShaderSource);
   const unsigned int fragmentShader =
@@ -225,6 +244,14 @@ void Application::createCubeResources() {
       glGetUniformLocation(shaderProgram_, "useOverrideColor");
   overrideColorLoc_ = glGetUniformLocation(shaderProgram_, "overrideColor");
 
+  cubiePositionLoc_ = glGetUniformLocation(shaderProgram_, "cubiePosition");
+  highlightEnabledLoc_ =
+      glGetUniformLocation(shaderProgram_, "highlightEnabled");
+  highlightedCubiePositionLoc_ =
+      glGetUniformLocation(shaderProgram_, "highlightedCubiePosition");
+  highlightedFaceNormalLoc_ =
+      glGetUniformLocation(shaderProgram_, "highlightedFaceNormal");
+
   cubeMesh_ = std::make_unique<Mesh>(vertices, indices);
   cubies_.clear();
 
@@ -282,6 +309,11 @@ void Application::destroyCubeResources() {
 
   useOverrideColorLoc_ = -1;
   overrideColorLoc_ = -1;
+
+  cubiePositionLoc_ = -1;
+  highlightEnabledLoc_ = -1;
+  highlightedCubiePositionLoc_ = -1;
+  highlightedFaceNormalLoc_ = -1;
 }
 
 void Application::processInput(float deltaTime) {
@@ -986,6 +1018,23 @@ int Application::run() {
 
     processMouseInput(view, projection, displayW, displayH);
 
+    // update which face is currwently under the mouse
+    // we only show hoever when the user is not dragging and when a turen is not
+    // animating this keeps hover feedback simple:
+    // - move mouse over cube: face highlights
+    // click/drag cube: hover disappears and drag and drag logic takes over
+    // turn anumation: hover disappears until the turn finishes
+    if (!isDraggingCamera_ && !isDraggingCube_ && !isTurning_) {
+      double mouseX = 0.0;
+      double mouseY = 0.0;
+      glfwGetCursorPos(window_, &mouseX, &mouseY);
+
+      hoverPick_ =
+          pickCubie(mouseX, mouseY, view, projection, displayW, displayH);
+    } else {
+      hoverPick_ = MousePick{};
+    }
+
     if (viewLoc_ != -1) {
       glUniformMatrix4fv(viewLoc_, 1, GL_FALSE, glm::value_ptr(view));
     }
@@ -1054,6 +1103,23 @@ int Application::run() {
       // outline experiment. We keep this set to 0 so the shader uses each
       // cubie's sticker colors instead of solid black.
       glUniform1i(useOverrideColorLoc_, 0);
+
+      // tell the shader which cubie is being drawn right nbow
+      // the shader recieves this once per cubie
+      // then it can compare this cubie against hoverPick_.cubiePosition
+      glUniform3fv(cubiePositionLoc_, 1, glm::value_ptr(cubie.position));
+
+      // tell the shader whether hover highlighting should be active
+      glUniform1i(highlightEnabledLoc_, hoverPick_.hit ? 1 : 0);
+
+      // send the hovered cubie's grid position
+      glUniform3fv(highlightedCubiePositionLoc_, 1,
+                   glm::value_ptr(hoverPick_.cubiePosition));
+
+      // send the hovered face direction
+      // this is what makes only one face highlight instead of the whole cubie
+      glUniform3fv(highlightedFaceNormalLoc_, 1,
+                   glm::value_ptr(hoverPick_.faceNormal));
 
       glUniform3fv(frontColorLoc_, 1, glm::value_ptr(cubie.frontColor));
       glUniform3fv(backColorLoc_, 1, glm::value_ptr(cubie.backColor));
