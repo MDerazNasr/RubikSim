@@ -27,6 +27,17 @@
 // anonymous namesce means these helper functions are only visible inside this
 // .cpp file
 namespace {
+bool sameColor(const glm::vec3 &a, const glm::vec3 &b) {
+  // Colors are stored as floats.
+  //
+  // Our sticker colors are assigned directly, so exact equality would probably
+  // work here. A small tolerance is still a better habit in graphics code.
+  const float epsilon = 0.001F;
+
+  return std::abs(a.x - b.x) < epsilon && std::abs(a.y - b.y) < epsilon &&
+         std::abs(a.z - b.z) < epsilon;
+}
+
 unsigned int compileShader(unsigned int type, const char *source) {
   const unsigned int shader = glCreateShader(type);
 
@@ -329,6 +340,54 @@ void Application::resetCubeState() {
   }
 }
 
+bool Application::isCubeSolved() const {
+  // Solved face colors.
+  //
+  // These match the colors assigned in resetCubeState().
+  const glm::vec3 green(0.0F, 0.8F, 0.1F);
+  const glm::vec3 blue(0.0F, 0.2F, 1.0F);
+  const glm::vec3 orange(1.0F, 0.45F, 0.0F);
+  const glm::vec3 red(0.9F, 0.0F, 0.0F);
+  const glm::vec3 white(1.0F, 1.0F, 1.0F);
+  const glm::vec3 yellow(1.0F, 0.9F, 0.0F);
+
+  for (const Cubie &cubie : cubies_) {
+    // Front side of the whole cube.
+    //
+    // If a cubie is on z = +1, its outward front sticker should be green.
+    if (cubie.position.z == 1.0F && !sameColor(cubie.frontColor, green)) {
+      return false;
+    }
+
+    // Back side of the whole cube.
+    if (cubie.position.z == -1.0F && !sameColor(cubie.backColor, blue)) {
+      return false;
+    }
+
+    // Left side of the whole cube.
+    if (cubie.position.x == -1.0F && !sameColor(cubie.leftColor, orange)) {
+      return false;
+    }
+
+    // Right side of the whole cube.
+    if (cubie.position.x == 1.0F && !sameColor(cubie.rightColor, red)) {
+      return false;
+    }
+
+    // Top side of the whole cube.
+    if (cubie.position.y == 1.0F && !sameColor(cubie.topColor, white)) {
+      return false;
+    }
+
+    // Bottom side of the whole cube.
+    if (cubie.position.y == -1.0F && !sameColor(cubie.bottomColor, yellow)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 Application::~Application() {
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
@@ -508,6 +567,19 @@ void Application::processInput(float deltaTime) {
       isTurning_ = false;
     }
   }
+
+  // Stop the timer automatically when the cube becomes solved.
+  //
+  // We only check while the cube is fully idle:
+  // - no active turn animation
+  // - no queued sequence still waiting
+  //
+  // That prevents the timer from stopping in the middle of an animated reset
+  // or scramble sequence.
+  if (!isTurning_ && moveQueue_.empty() && timerRunning_ && isCubeSolved()) {
+    stopTimer();
+  }
+
   // if the cube is idle and moves are wating start the next queued move
   // this is what makes scramble and solve back anumate move by move
   updateMoveQueue();
@@ -1263,6 +1335,16 @@ void Application::renderUi() {
   // later we can split this into controls, timer and dataset toldl
   ImGui::Begin("RubikSim Controls");
 
+  // The cube is busy when a turn is animating or when queued moves are waiting.
+  //
+  // While busy, we disable cube action buttons so the user cannot start a
+  // scramble/reset sequence on top of an existing sequence from the UI.
+  const bool cubeBusy = isTurning_ || !moveQueue_.empty();
+  const double elapsedSeconds = elapsedTimerSeconds();
+  const int elapsedMinutes = static_cast<int>(elapsedSeconds / 60.0);
+  const double remainingSeconds =
+      elapsedSeconds - static_cast<double>(elapsedMinutes) * 60.0;
+
   ImGui::Text("Controls");
   ImGui::Separator();
   ImGui::Text("Mouse drag cubie: rotate layer");
@@ -1277,7 +1359,8 @@ void Application::renderUi() {
   ImGui::Separator();
 
   ImGui::Text("Timer");
-  ImGui::Text("%.2f seconds", elapsedTimerSeconds());
+  ImGui::Text("%02d:%05.2f", elapsedMinutes, remainingSeconds);
+  ImGui::Text("Timer status: %s", timerRunning_ ? "running" : "stopped");
 
   if (ImGui::Button(timerRunning_ ? "Stop Timer" : "Start Timer")) {
     toggleTimer();
@@ -1296,23 +1379,32 @@ void Application::renderUi() {
   ImGui::Text("Move history: %zu", moveHistory_.size());
   ImGui::Text("Move queue: %zu", moveQueue_.size());
   ImGui::Text("Turning: %s", isTurning_ ? "yes" : "no");
+  ImGui::Text("Busy: %s", cubeBusy ? "yes" : "no");
+  ImGui::Text("Solved: %s", isCubeSolved() ? "yes" : "no");
+  ImGui::Text("Animated reset moves: %zu", moveHistory_.size());
 
   ImGui::Spacing();
   ImGui::Separator();
 
+  ImGui::BeginDisabled(cubeBusy);
   if (ImGui::Button("Scramble")) {
     scrambleCube();
   }
+  ImGui::EndDisabled();
 
   ImGui::SameLine();
 
+  ImGui::BeginDisabled(cubeBusy || moveHistory_.empty());
   if (ImGui::Button("Animated Reset")) {
     solveBackFromMoveHistory();
   }
+  ImGui::EndDisabled();
 
+  ImGui::BeginDisabled(cubeBusy);
   if (ImGui::Button("Hard Reset")) {
     resetCubeState();
   }
+  ImGui::EndDisabled();
 
   ImGui::End();
 }

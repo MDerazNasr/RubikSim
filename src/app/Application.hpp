@@ -120,6 +120,12 @@ private:
   // Later the UI reset button can call this same function.
   void resetCubeState();
 
+  // Returns true when every visible sticker is back on its solved face.
+  //
+  // This checks sticker colors, not move history.
+  // That means it still works if the user solves the cube manually.
+  bool isCubeSolved() const;
+
   // Starts a turn animation from a Move.
   //
   // This becomes the one official way to start a cube rotation.
