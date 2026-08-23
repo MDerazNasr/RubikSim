@@ -6,6 +6,7 @@
 #include <ios>
 #include <iostream>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 // give this source file access rto glfw functions
 #define GLFW_INCLUDE_GLCOREARB
@@ -295,6 +296,8 @@ void Application::resetCubeState() {
   turnAngle_ = 0.0F;
   moveQueue_.clear();
   moveHistory_.clear();
+  latestScrambleMoves_.clear();
+  hasLastRecordedMove_ = false;
   currentMove_ = Move{TurnAxis::X, 1, 1.0F};
   recordCurrentMoveInHistory_ = true;
 
@@ -715,12 +718,68 @@ Move Application::inverseMove(const Move &move) const {
   };
 }
 
+std::string Application::moveToNotation(const Move &move) const {
+  // Standard Rubik notation names the outer faces:
+  //
+  // X axis:
+  //   layer  1 -> R
+  //   layer -1 -> L
+  //
+  // Y axis:
+  //   layer  1 -> U
+  //   layer -1 -> D
+  //
+  // Z axis:
+  //   layer  1 -> F
+  //   layer -1 -> B
+  //
+  // The direction sign decides whether we add a prime mark.
+  // In this project, the "normal" direction matches the layer sign:
+  // +1 layer with +1 direction is R/U/F.
+  // -1 layer with -1 direction is L/D/B.
+  std::string notation = "?";
+
+  if (move.axis == TurnAxis::X) {
+    notation = move.layer >= 0 ? "R" : "L";
+  } else if (move.axis == TurnAxis::Y) {
+    notation = move.layer >= 0 ? "U" : "D";
+  } else {
+    notation = move.layer >= 0 ? "F" : "B";
+  }
+
+  const bool isPrimeMove =
+      (move.layer >= 0 && move.direction < 0.0F) ||
+      (move.layer < 0 && move.direction > 0.0F);
+
+  if (isPrimeMove) {
+    notation += "'";
+  }
+
+  return notation;
+}
+
+std::string Application::movesToNotation(const std::vector<Move> &moves) const {
+  std::ostringstream stream;
+
+  for (std::size_t i = 0; i < moves.size(); ++i) {
+    if (i > 0) {
+      stream << ' ';
+    }
+
+    stream << moveToNotation(moves[i]);
+  }
+
+  return stream.str();
+}
+
 void Application::scrambleCube() {
   // dont start a new scramble while a turn or queue is already active
   // this keeps state predictable while we are learning
   if (isTurning_ || !moveQueue_.empty()) {
     return;
   }
+
+  latestScrambleMoves_.clear();
 
   // random number tools
   // rabdom_device is the actual random generator
@@ -779,6 +838,7 @@ void Application::scrambleCube() {
     }
 
     queueMove(move);
+    latestScrambleMoves_.push_back(move);
     previousMove = move;
     hasPreviousMove = true;
   }
@@ -959,6 +1019,8 @@ void Application::applyTurnToCubeState() {
   // them with recordCurrentMoveInHistory_ = false.
   if (recordCurrentMoveInHistory_) {
     moveHistory_.push_back(currentMove_);
+    lastRecordedMove_ = currentMove_;
+    hasLastRecordedMove_ = true;
   }
 }
 
@@ -1382,6 +1444,17 @@ void Application::renderUi() {
   ImGui::Text("Busy: %s", cubeBusy ? "yes" : "no");
   ImGui::Text("Solved: %s", isCubeSolved() ? "yes" : "no");
   ImGui::Text("Animated reset moves: %zu", moveHistory_.size());
+  const std::string lastMoveNotation =
+      hasLastRecordedMove_ ? moveToNotation(lastRecordedMove_) : "none";
+  ImGui::Text("Last move: %s", lastMoveNotation.c_str());
+
+  if (latestScrambleMoves_.empty()) {
+    ImGui::TextWrapped("Latest scramble: none");
+  } else {
+    const std::string scrambleNotation =
+        movesToNotation(latestScrambleMoves_);
+    ImGui::TextWrapped("Latest scramble: %s", scrambleNotation.c_str());
+  }
 
   ImGui::Spacing();
   ImGui::Separator();
