@@ -64,6 +64,8 @@ target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
 add_executable(rubiksim #creates the program with that name
   src/main.cpp #contains main
   src/app/Application.cpp #contains application fucntions def
+  src/app/ApplicationInput.cpp
+  src/app/ApplicationUi.cpp
   src/renderer/Mesh.cpp #constains mesh function def
 )
 
