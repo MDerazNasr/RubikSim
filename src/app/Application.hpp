@@ -102,8 +102,8 @@ private:
   void destroyCubeResources();
   //
   void processInput(float deltaTime);
-  void processMouseInput(const glm::mat4 &view, const glm::mat4 &projection,
-                         int displayW, int displayH);
+  void processCameraMouseInput(bool allowStartingNewDrag);
+  void processMouseInput();
 
   MousePick pickCubie(double mouseX, double mouseY, const glm::mat4 &view,
                       const glm::mat4 &projection, int displayW,

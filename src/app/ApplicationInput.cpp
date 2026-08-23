@@ -198,9 +198,7 @@ float directionSignForAxis(const glm::vec3 &direction, TurnAxis axis) {
   return value >= 0.0F ? 1.0F : -1.0F;
 }
 
-void Application::processMouseInput(const glm::mat4 &view,
-                                    const glm::mat4 &projection, int displayW,
-                                    int displayH) {
+void Application::processCameraMouseInput(bool allowStartingNewDrag) {
   double mouseX = 0.0;
   double mouseY = 0.0;
   glfwGetCursorPos(window_, &mouseX, &mouseY);
@@ -208,31 +206,53 @@ void Application::processMouseInput(const glm::mat4 &view,
   const bool leftMouseDown =
       glfwGetMouseButton(window_, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
 
-  if (leftMouseDown && !isDraggingCamera_ && !isDraggingCube_) {
-    activePick_ =
-        pickCubie(mouseX, mouseY, view, projection, displayW, displayH);
+  if (!leftMouseDown) {
+    isDraggingCamera_ = false;
+    isDraggingCube_ = false;
+    hasStartedMouseTurn_ = false;
+    return;
+  }
 
-    if (activePick_.hit) {
-      // The drag started on a cubie, so this drag belongs to the cube.
-      //
-      // We do not immediately turn. We wait until the mouse moves far enough
-      // to tell whether the drag is mostly horizontal or mostly vertical.
+  if (!isDraggingCamera_ && !isDraggingCube_) {
+    if (!allowStartingNewDrag) {
+      return;
+    }
+
+    // Decide what this drag means before the camera matrix is built.
+    //
+    // hoverPick_ was calculated at the end of the previous frame.
+    // That is the face the user saw highlighted right before clicking, so it
+    // is a good "what did the click start on?" answer.
+    //
+    // Doing this here removes an input-lag source:
+    // camera drags no longer wait until after view/projection are created.
+    if (hoverPick_.hit) {
+      activePick_ = hoverPick_;
       isDraggingCube_ = true;
       hasStartedMouseTurn_ = false;
       dragStartX_ = mouseX;
       dragStartY_ = mouseY;
-    } else {
-      // The drag started in empty space, so this drag orbits the camera.
-      isDraggingCamera_ = true;
-      lastMouseX_ = mouseX;
-      lastMouseY_ = mouseY;
+      return;
     }
+
+    isDraggingCamera_ = true;
+    lastMouseX_ = mouseX;
+    lastMouseY_ = mouseY;
   }
 
+  // Camera dragging only happens after the drag-start code above has decided
+  // that this drag started in empty space.
+  //
+  // The important part is that this function runs before the camera matrices
+  // are built in Application::run().
+  // That way, the current frame uses the newest mouse movement immediately
+  // instead of drawing one frame behind the cursor.
   if (leftMouseDown && isDraggingCamera_) {
     const double dx = mouseX - lastMouseX_;
     const double dy = mouseY - lastMouseY_;
-    const float mouseSensitivity = 0.005F;
+    // Higher sensitivity makes the camera follow the hand more directly.
+    // If this feels too fast later, tune this one number down slightly.
+    const float mouseSensitivity = 0.008F;
 
     cameraYaw_ -= static_cast<float>(dx) * mouseSensitivity;
     cameraPitch_ += static_cast<float>(dy) * mouseSensitivity;
@@ -240,6 +260,15 @@ void Application::processMouseInput(const glm::mat4 &view,
     lastMouseX_ = mouseX;
     lastMouseY_ = mouseY;
   }
+}
+
+void Application::processMouseInput() {
+  double mouseX = 0.0;
+  double mouseY = 0.0;
+  glfwGetCursorPos(window_, &mouseX, &mouseY);
+
+  const bool leftMouseDown =
+      glfwGetMouseButton(window_, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
 
   if (leftMouseDown && isDraggingCube_ && !hasStartedMouseTurn_ &&
       !isTurning_) {
@@ -368,12 +397,6 @@ void Application::processMouseInput(const glm::mat4 &view,
       // Prevent this same drag from starting multiple turns.
       hasStartedMouseTurn_ = true;
     }
-  }
-
-  if (!leftMouseDown) {
-    isDraggingCamera_ = false;
-    isDraggingCube_ = false;
-    hasStartedMouseTurn_ = false;
   }
 }
 } // namespace rubiksim
