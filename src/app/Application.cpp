@@ -344,25 +344,6 @@ void Application::destroyCubeResources() {
 }
 
 void Application::processInput(float deltaTime) {
-  if (glfwGetKey(window_, GLFW_KEY_R) == GLFW_PRESS) {
-    selectedFace_ = SelectedFace::Right;
-  }
-  if (glfwGetKey(window_, GLFW_KEY_L) == GLFW_PRESS) {
-    selectedFace_ = SelectedFace::Left;
-  }
-  if (glfwGetKey(window_, GLFW_KEY_U) == GLFW_PRESS) {
-    selectedFace_ = SelectedFace::Top;
-  }
-  if (glfwGetKey(window_, GLFW_KEY_D) == GLFW_PRESS) {
-    selectedFace_ = SelectedFace::Bottom;
-  }
-  if (glfwGetKey(window_, GLFW_KEY_F) == GLFW_PRESS) {
-    selectedFace_ = SelectedFace::Front;
-  }
-  if (glfwGetKey(window_, GLFW_KEY_B) == GLFW_PRESS) {
-    selectedFace_ = SelectedFace::Back;
-  }
-
   // if escape is pressed, tell GLFW the window should close
   if (glfwGetKey(window_, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
     glfwSetWindowShouldClose(window_, GLFW_TRUE);
@@ -392,30 +373,6 @@ void Application::processInput(float deltaTime) {
   if (glfwGetKey(window_, GLFW_KEY_S) == GLFW_PRESS) {
     cameraDistance_ += zoomSpeed * deltaTime;
   }
-
-  // Space starts a face turn.
-  //
-  // Important:
-  // We only start a new turn if:
-  // 1. Space is pressed now.
-  // 2. Space was not already pressed last frame.
-  // 3. No turn is currently happening.
-  //
-  // This means one key press creates one clean animation.
-  const bool spaceIsPressed = glfwGetKey(window_, GLFW_KEY_SPACE) == GLFW_PRESS;
-  if (spaceIsPressed && !spaceWasPressed_) {
-    // Freeze which face is turning.
-    //
-    // selectedFace_ can still change later if the user presses R/L/U/D/F/B,
-    // but turningFace_ keeps this animation tied to the original face.
-    turningFace_ = selectedFace_;
-
-    // Convert the selected face into a generic Move, then start it.
-    //
-    // startTurn() will ignore the request if a turn is already active.
-    startTurn(moveForSelectedFace(selectedFace_));
-  }
-  spaceWasPressed_ = spaceIsPressed;
 
   // If a face turn is active, advance the angle a little this frame.
   if (isTurning_) {
@@ -480,55 +437,6 @@ void Application::processInput(float deltaTime) {
   }
 }
 
-bool Application::isCubieInFace(const Cubie &cubie, SelectedFace face) const {
-  // a cubie pos is one of -1, 0, or 1 on each axis
-  // x == 1 means right layer
-  // x == -1 means left layer
-  // y == 1 means top layer
-  // y == -1 means bottom layer
-  // z == 1 means front layer
-  // z == -1 means back layer
-  if (face == SelectedFace::Right) {
-    return cubie.position.x == 1.0F;
-  }
-
-  if (face == SelectedFace::Left) {
-    return cubie.position.x == -1.0F;
-  }
-  if (face == SelectedFace::Top) {
-    return cubie.position.y == 1.0F;
-  }
-
-  if (face == SelectedFace::Bottom) {
-    return cubie.position.y == -1.0F;
-  }
-  if (face == SelectedFace::Front) {
-    return cubie.position.z == 1.0F;
-  }
-
-  if (face == SelectedFace::Back) {
-    return cubie.position.z == -1.0F;
-  }
-
-  return false;
-}
-
-glm::vec3 rotationAxisForFace(SelectedFace face) {
-  // A rotation axis is the imaginary line that an object spins around.
-  //
-  // If you rotate the Right or Left face, the cubies spin around the X axis.
-  // If you rotate the Top or Bottom face, the cubies spin around the Y axis.
-  // If you rotate the Front or Back face, the cubies spin around the Z axis.
-  if (face == SelectedFace::Right || face == SelectedFace::Left) {
-    return glm::vec3(1.0F, 0.0F, 0.0F);
-  }
-  if (face == SelectedFace::Top || face == SelectedFace::Bottom) {
-    return glm::vec3(0.0F, 1.0F, 0.0F);
-  }
-
-  return glm::vec3(0.0F, 0.0F, 1.0F);
-}
-
 glm::vec3 rotationAxisForTurnAxis(TurnAxis axis) {
   if (axis == TurnAxis::X) {
     return glm::vec3(1.0F, 0.0F, 0.0F);
@@ -558,38 +466,6 @@ bool Application::isCubieInTurningLayer(const Cubie &cubie) const {
   }
 
   return static_cast<int>(cubie.position.z) == turningLayer_;
-}
-
-Move Application::moveForSelectedFace(SelectedFace face) const {
-  // This function translates the old keyboard face selection system into the
-  // new generic Move system.
-  //
-  // The keyboard still thinks in faces:
-  // R, L, U, D, F, B
-  //
-  // The animation system thinks in axes/layers:
-  // axis X/Y/Z, layer -1/0/1, direction +1/-1
-  if (face == SelectedFace::Right) {
-    return Move{TurnAxis::X, 1, 1.0F};
-  }
-
-  if (face == SelectedFace::Left) {
-    return Move{TurnAxis::X, -1, -1.0F};
-  }
-
-  if (face == SelectedFace::Top) {
-    return Move{TurnAxis::Y, 1, 1.0F};
-  }
-
-  if (face == SelectedFace::Bottom) {
-    return Move{TurnAxis::Y, -1, -1.0F};
-  }
-
-  if (face == SelectedFace::Front) {
-    return Move{TurnAxis::Z, 1, 1.0F};
-  }
-
-  return Move{TurnAxis::Z, -1, -1.0F};
 }
 
 void Application::startTurn(const Move &move) {

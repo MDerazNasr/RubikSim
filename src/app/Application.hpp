@@ -25,11 +25,6 @@ struct Cubie {
   glm::vec3 bottomColor;
 };
 
-// enum means a variabkle that can only be one of these named choices
-// so instead of remembering: 0 means right, 1 means keft, 2 means top :
-// we can write readable code -> SelectedFace::Right, SelectedFace::Face
-enum class SelectedFace { Right, Left, Top, Bottom, Front, Back };
-
 // A turn can happen around one of the three world axes.
 //
 // X axis turns left/right layers.
@@ -107,16 +102,6 @@ private:
                       const glm::mat4 &projection, int displayW,
                       int displayH) const;
 
-  // Returns true if this cubie belongs to the requested face.
-  //
-  // The const at the end means this function promises not to modify
-  // Application.
-  //
-  // We pass the face in as an argument instead of always using selectedFace_.
-  // Why?
-  // Because selectedFace_ can change while an animation is running, but the
-  // running animation should keep using the face that started the turn.
-  bool isCubieInFace(const Cubie &cubie, SelectedFace face) const;
   bool isCubieInTurningLayer(const Cubie &cubie) const;
 
   // Rebuilds the cube into the solved state.
@@ -134,13 +119,6 @@ private:
   // This becomes the one official way to start a cube rotation.
   // Keyboard, mouse, scramble, and UI will all call this later.
   void startTurn(const Move &move);
-
-  // Converts the currently selected keyboard face into a Move.
-  //
-  // Example:
-  // SelectedFace::Right becomes:
-  // axis X, layer 1, direction +1
-  Move moveForSelectedFace(SelectedFace face) const;
 
   // Permanently applies the finished 90 degree turn to cubie data.
   //
@@ -241,9 +219,6 @@ private:
 
   // used to calc deltaTime
   float lastFrameTime_{0.0F};
-  // the face currently selected for a future move
-  // we start with the right face bfecause is the first standard Rubik move
-  SelectedFace selectedFace_{SelectedFace::Right};
   // stores all small cubes that make up the rubik's cubeMesh_
   std::vector<Cubie> cubies_;
 
@@ -252,32 +227,17 @@ private:
   // These variables describe a turn that is happening right now.
   //
   // Example:
-  // You select the Right face.
-  // You press Space.
-  // isTurning_ becomes true.
-  // turningFace_ stores Right.
+  // You drag one cubie face with the mouse.
+  // startTurn() stores the axis/layer/direction.
   // turnAngle_ starts at 0.
   // Every frame, turnAngle_ increases until it reaches 90 degrees.
   bool isTurning_{false};
 
-  // Tracks whether Space was already down last frame.
-  // Without this, holding Space for a few frames could start the turn more than
-  // once. We want one press to start one animation.
-  bool spaceWasPressed_{false};
-
   // Tracks whether the reset key was already down last frame.
   //
-  // This is the same idea as spaceWasPressed_:
+  // This is an edge-trigger guard:
   // holding the reset key should reset once, not every frame.
   bool resetWasPressed_{false};
-
-  // Stores which face is currently being animated.
-  //
-  // We copy selectedFace_ into turningFace_ when the animation starts.
-  // Why not just use selectedFace_ directly?
-  // Because the user might press another face key while the turn is animating.
-  // The current animation should keep rotating the original face.
-  SelectedFace turningFace_{SelectedFace::Right};
 
   // Generic turn description.
   //
