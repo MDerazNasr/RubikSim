@@ -375,8 +375,8 @@ void Application::processInput(float deltaTime) {
   }
   scrambleWasPressed_ = scrambleIsPressed;
 
-  // V solves back by undoing every recorded move.
-  const bool solveBackIsPressed = glfwGetKey(window_, GLFW_KEY_V) == GLFW_PRESS;
+  // Z solves back by undoing every recorded move.
+  const bool solveBackIsPressed = glfwGetKey(window_, GLFW_KEY_Z) == GLFW_PRESS;
 
   if (solveBackIsPressed && !solveBackWasPressed_) {
     solveBackFromMoveHistory();
