@@ -119,6 +119,16 @@ private:
   bool isCubieInFace(const Cubie &cubie, SelectedFace face) const;
   bool isCubieInTurningLayer(const Cubie &cubie) const;
 
+  // Rebuilds the cube into the solved state.
+  //
+  // This resets:
+  // - every cubie's grid position
+  // - every sticker color
+  // - any active turn animation
+  //
+  // Later the UI reset button can call this same function.
+  void resetCubeState();
+
   // Starts a turn animation from a Move.
   //
   // This becomes the one official way to start a cube rotation.
@@ -254,6 +264,12 @@ private:
   // Without this, holding Space for a few frames could start the turn more than
   // once. We want one press to start one animation.
   bool spaceWasPressed_{false};
+
+  // Tracks whether the reset key was already down last frame.
+  //
+  // This is the same idea as spaceWasPressed_:
+  // holding the reset key should reset once, not every frame.
+  bool resetWasPressed_{false};
 
   // Stores which face is currently being animated.
   //

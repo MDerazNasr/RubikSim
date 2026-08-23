@@ -255,6 +255,31 @@ void Application::createCubeResources() {
       glGetUniformLocation(shaderProgram_, "highlightedFaceNormal");
 
   cubeMesh_ = std::make_unique<Mesh>(vertices, indices);
+  resetCubeState();
+}
+
+void Application::resetCubeState() {
+  // Cancel any turn animation that might currently be in progress.
+  //
+  // Reset means "go directly back to solved."
+  // We do not want to finish the current animation first.
+  isTurning_ = false;
+  turnAngle_ = 0.0F;
+
+  // Also cancel mouse drag state.
+  //
+  // Without this, the user could hold the mouse down, reset, and then release
+  // into old drag state from before the reset.
+  isDraggingCamera_ = false;
+  isDraggingCube_ = false;
+  hasStartedMouseTurn_ = false;
+  activePick_ = MousePick{};
+  hoverPick_ = MousePick{};
+
+  // Rebuild all cubies from scratch in solved positions.
+  //
+  // This is simpler and safer than trying to reverse all previous moves.
+  // The solved cube is just the 27 grid positions from -1 to +1 on x/y/z.
   cubies_.clear();
 
   for (int x = -1; x <= 1; ++x) {
@@ -342,6 +367,19 @@ void Application::processInput(float deltaTime) {
   if (glfwGetKey(window_, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
     glfwSetWindowShouldClose(window_, GLFW_TRUE);
   }
+
+  // Backspace or Enter resets the cube to solved state.
+  //
+  // We check for "pressed now" and "was not pressed last frame" so one key
+  // press creates one reset.
+  const bool resetIsPressed =
+      glfwGetKey(window_, GLFW_KEY_BACKSPACE) == GLFW_PRESS ||
+      glfwGetKey(window_, GLFW_KEY_ENTER) == GLFW_PRESS;
+
+  if (resetIsPressed && !resetWasPressed_) {
+    resetCubeState();
+  }
+  resetWasPressed_ = resetIsPressed;
 
   // W and S still control zoom for now.
   // Later we can move zoom to the mouse wheel.
