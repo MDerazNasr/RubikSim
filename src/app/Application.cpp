@@ -354,7 +354,7 @@ void Application::processInput(float deltaTime) {
     glfwSetWindowShouldClose(window_, GLFW_TRUE);
   }
 
-  // Backspace or Enter resets the cube to solved state.
+  // Backspace or Enter hard-resets the cube to solved state.
   //
   // We check for "pressed now" and "was not pressed last frame" so one key
   // press creates one reset.
@@ -375,8 +375,8 @@ void Application::processInput(float deltaTime) {
   }
   scrambleWasPressed_ = scrambleIsPressed;
 
-  // Z solves back by undoing every recorded move.
-  const bool solveBackIsPressed = glfwGetKey(window_, GLFW_KEY_Z) == GLFW_PRESS;
+  // V performs an animated reset by undoing every recorded move.
+  const bool solveBackIsPressed = glfwGetKey(window_, GLFW_KEY_V) == GLFW_PRESS;
 
   if (solveBackIsPressed && !solveBackWasPressed_) {
     solveBackFromMoveHistory();
@@ -404,7 +404,7 @@ void Application::processInput(float deltaTime) {
     // This is the turn speed.
     //
     // 180 degrees per second means a 90 degree turn takes about half a second.
-    const float turnSpeed = glm::radians(180.0F);
+    const float turnSpeed = targetAngle / currentTurnDurationSeconds_;
 
     // Increase the current angle by:
     // speed * time passed since last frame.
@@ -491,7 +491,8 @@ bool Application::isCubieInTurningLayer(const Cubie &cubie) const {
   return static_cast<int>(cubie.position.z) == turningLayer_;
 }
 
-void Application::startTurn(const Move &move, bool recordInHistory) {
+void Application::startTurn(const Move &move, bool recordInHistory,
+                            float turnDurationSeconds) {
   // Do not start a second turn while one is already animating.
   //
   // This guard matters because later scramble will try to run many moves.
@@ -510,14 +511,25 @@ void Application::startTurn(const Move &move, bool recordInHistory) {
   currentMove_ = move;
   recordCurrentMoveInHistory_ = recordInHistory;
 
+  // Protect the animation math from zero or extremely tiny durations.
+  //
+  // Normal turns use the default 0.5 seconds.
+  // Animated reset can pass smaller values when there are many moves to undo.
+  if (turnDurationSeconds < 0.008F) {
+    currentTurnDurationSeconds_ = 0.008F;
+  } else {
+    currentTurnDurationSeconds_ = turnDurationSeconds;
+  }
+
   // Start the visual animation from 0 degrees.
   isTurning_ = true;
   turnAngle_ = 0.0F;
 }
 
-void Application::queueMove(const Move &move, bool recordInHistory) {
+void Application::queueMove(const Move &move, bool recordInHistory,
+                            float turnDurationSeconds) {
   // add one move to the back of the waiting list
-  moveQueue_.push_back(QueuedMove{move, recordInHistory});
+  moveQueue_.push_back(QueuedMove{move, recordInHistory, turnDurationSeconds});
 }
 
 void Application::queueMoves(const std::vector<Move> &moves) {
@@ -546,7 +558,8 @@ void Application::updateMoveQueue() {
   const QueuedMove nextMove = moveQueue_.front();
   moveQueue_.erase(moveQueue_.begin());
 
-  startTurn(nextMove.move, nextMove.recordInHistory);
+  startTurn(nextMove.move, nextMove.recordInHistory,
+            nextMove.turnDurationSeconds);
 }
 
 Move Application::inverseMove(const Move &move) const {
@@ -577,31 +590,53 @@ void Application::scrambleCube() {
   std::uniform_int_distribution<int> axisDistribution(0, 2);
   std::uniform_int_distribution<int> layerDistribution(0, 1);
 
-  // direction choices
+  // direction choices:
   // 0 -> -1
-  // 0 -> +1
+  // 1 -> +1
   std::uniform_int_distribution<int> directionDistribution(0, 1);
 
   const int scrambleLength = 20;
+  bool hasPreviousMove = false;
+  Move previousMove{TurnAxis::X, 1, 1.0F};
 
   for (int i = 0; i < scrambleLength; ++i) {
-    const int axisValue = axisDistribution(generator);
-    const int layerValue = layerDistribution(generator);
-    const int directionValue = directionDistribution(generator);
+    Move move{TurnAxis::X, 1, 1.0F};
 
-    TurnAxis axis = TurnAxis::X;
-    if (axisValue == 1) {
-      axis = TurnAxis::Y;
-    } else if (axisValue == 2) {
-      axis = TurnAxis::Z;
+    while (true) {
+      const int axisValue = axisDistribution(generator);
+      const int layerValue = layerDistribution(generator);
+      const int directionValue = directionDistribution(generator);
+
+      TurnAxis axis = TurnAxis::X;
+      if (axisValue == 1) {
+        axis = TurnAxis::Y;
+      } else if (axisValue == 2) {
+        axis = TurnAxis::Z;
+      }
+
+      const int layer = layerValue == 0 ? -1 : 1;
+      const float direction = directionValue == 0 ? -1.0F : 1.0F;
+
+      move = Move{axis, layer, direction};
+
+      // Avoid weak scramble moves.
+      //
+      // If we allow the same axis twice in a row, we can get sequences like:
+      // R then R'
+      // R then L
+      // U then D
+      //
+      // Some are direct cancellations, and some are just less useful for a
+      // beginner scramble. Choosing a different axis each time keeps the
+      // scramble more varied and easier to reason about.
+      if (!hasPreviousMove || move.axis != previousMove.axis) {
+        break;
+      }
     }
 
-    const int layer = layerValue == 0 ? -1 : 1;
-    const float direction = directionValue == 0 ? -1.0F : 1.0F;
-
-    const Move move{axis, layer, direction};
-
     queueMove(move);
+    previousMove = move;
+    hasPreviousMove = true;
   }
 }
 
@@ -609,6 +644,24 @@ void Application::solveBackFromMoveHistory() {
   // do not solve back wgile another sequence is still running
   if (isTurning_ || !moveQueue_.empty()) {
     return;
+  }
+
+  const int moveCount = static_cast<int>(moveHistory_.size());
+  if (moveCount == 0) {
+    return;
+  }
+
+  // Maximum total time for animated reset.
+  const float maxSolveBackSeconds = 4.0F;
+
+  // Give every inverse move an equal slice of the time budget.
+  //
+  // A tiny minimum prevents huge histories from requesting near-zero duration
+  // turns, which can look like flickering instead of animation.
+  float secondsPerMove =
+      maxSolveBackSeconds / static_cast<float>(moveCount);
+  if (secondsPerMove < 0.008F) {
+    secondsPerMove = 0.008F;
   }
 
   // Use moveHistory_ like a stack.
@@ -625,7 +678,7 @@ void Application::solveBackFromMoveHistory() {
     //
     // Otherwise solve-back would refill the history with inverse moves while it
     // is trying to empty the history.
-    queueMove(inverseMove(latestMove), false);
+    queueMove(inverseMove(latestMove), false, secondsPerMove);
   }
 }
 

@@ -62,6 +62,7 @@ struct Move {
 struct QueuedMove {
   Move move;
   bool recordInHistory{true};
+  float turnDurationSeconds{0.5F};
 };
 
 struct MousePick {
@@ -123,7 +124,8 @@ private:
   //
   // This becomes the one official way to start a cube rotation.
   // Keyboard, mouse, scramble, and UI will all call this later.
-  void startTurn(const Move &move, bool recordInHistory = true);
+  void startTurn(const Move &move, bool recordInHistory = true,
+                 float turnDurationSeconds = 0.5F);
 
   // Permanently applies the finished 90 degree turn to cubie data.
   //
@@ -134,7 +136,8 @@ private:
 
   // adds one move to the waiting list
   // if no turn is currently active, updateMoveQueue() will start it
-  void queueMove(const Move &move, bool recordInHistory = true);
+  void queueMove(const Move &move, bool recordInHistory = true,
+                 float turnDurationSeconds = 0.5F);
 
   // adds several moves to the waiting list
   // scramble and solve back will use this
@@ -146,14 +149,21 @@ private:
   // Creates a random scramble and queues it
   void scrambleCube();
 
-  // Queues the inverse of the scramble history
-  // This only solves back to the state before the scramble, not necessarily
-  // eveyr random user move after the scramble
+  // Queues inverse moves from the move history stack.
+  //
+  // We use this as the animated reset:
+  // it walks backward through every completed move and undoes them one by one.
   void solveBackFromMoveHistory();
 
   // returns the opposite of a move
   // if a move rotates 90 degrees its inverse rotates -90 degrees
   Move inverseMove(const Move &move) const;
+
+  // Duration of the move currently being animated.
+  //
+  // Normal moves use about 0.5 seconds.
+  // Animated reset moves calculate a duration from the history stack size.
+  float currentTurnDurationSeconds_{0.5F};
 
   GLFWwindow *window_;
   // unsigned int means non negative integer
