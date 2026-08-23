@@ -368,24 +368,76 @@ void Application::destroyCubeResources() {
   highlightedFaceNormalLoc_ = -1;
 }
 
+void Application::startTimer() {
+  if (timerRunning_) {
+    return;
+  }
+
+  timerRunning_ = true;
+  timerStartTime_ = glfwGetTime();
+}
+
+void Application::stopTimer() {
+  if (!timerRunning_) {
+    return;
+  }
+
+  accumulatedTimerSeconds_ += glfwGetTime() - timerStartTime_;
+  timerRunning_ = false;
+}
+
+void Application::toggleTimer() {
+  if (timerRunning_) {
+    stopTimer();
+  } else {
+    startTimer();
+  }
+}
+
+void Application::resetTimer() {
+  timerRunning_ = false;
+  timerStartTime_ = 0.0;
+  accumulatedTimerSeconds_ = 0.0;
+}
+
+double Application::elapsedTimerSeconds() const {
+  if (timerRunning_) {
+    return accumulatedTimerSeconds_ + (glfwGetTime() - timerStartTime_);
+  }
+
+  return accumulatedTimerSeconds_;
+}
+
 void Application::processInput(float deltaTime) {
   // if escape is pressed, tell GLFW the window should close
   if (glfwGetKey(window_, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
     glfwSetWindowShouldClose(window_, GLFW_TRUE);
   }
 
-  // Backspace or Enter hard-resets the cube to solved state.
+  // Backspace hard-resets the cube to solved state.
   //
   // We check for "pressed now" and "was not pressed last frame" so one key
   // press creates one reset.
   const bool resetIsPressed =
-      glfwGetKey(window_, GLFW_KEY_BACKSPACE) == GLFW_PRESS ||
-      glfwGetKey(window_, GLFW_KEY_ENTER) == GLFW_PRESS;
+      glfwGetKey(window_, GLFW_KEY_BACKSPACE) == GLFW_PRESS;
 
   if (resetIsPressed && !resetWasPressed_) {
     resetCubeState();
   }
   resetWasPressed_ = resetIsPressed;
+
+  // Return toggles the timer.
+  //
+  // This is separate from cube reset now:
+  // - Return: start/stop timer
+  // - Backspace: hard reset cube
+  const bool timerToggleIsPressed =
+      glfwGetKey(window_, GLFW_KEY_ENTER) == GLFW_PRESS;
+
+  if (timerToggleIsPressed && !timerToggleWasPressed_) {
+    toggleTimer();
+  }
+  timerToggleWasPressed_ = timerToggleIsPressed;
 
   // X starts a scramble.
   const bool scrambleIsPressed = glfwGetKey(window_, GLFW_KEY_X) == GLFW_PRESS;
@@ -1186,6 +1238,12 @@ void Application::processMouseInput(const glm::mat4 &view,
           directionSignForAxis(turnAxisDirection, turnAxis),
       };
 
+      // A manual cube rotation starts the timer automatically.
+      //
+      // Scramble and animated reset do not pass through this mouse-drag path,
+      // so they do not auto-start the timer.
+      startTimer();
+
       startTurn(dragMove);
 
       // Prevent this same drag from starting multiple turns.
@@ -1212,7 +1270,24 @@ void Application::renderUi() {
   ImGui::Text("W / S: zoom");
   ImGui::Text("X: scramble");
   ImGui::Text("V: animated reset");
-  ImGui::Text("Backspace / Enter: hard reset");
+  ImGui::Text("Return: start/stop timer");
+  ImGui::Text("Backspace: hard reset");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+
+  ImGui::Text("Timer");
+  ImGui::Text("%.2f seconds", elapsedTimerSeconds());
+
+  if (ImGui::Button(timerRunning_ ? "Stop Timer" : "Start Timer")) {
+    toggleTimer();
+  }
+
+  ImGui::SameLine();
+
+  if (ImGui::Button("Reset Timer")) {
+    resetTimer();
+  }
 
   ImGui::Spacing();
   ImGui::Separator();

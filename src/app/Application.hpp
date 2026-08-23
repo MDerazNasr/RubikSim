@@ -170,6 +170,26 @@ private:
   // that means buttons do not ceate sep behaviour
   void renderUi();
 
+  // Starts the solve timer if it is not already running.
+  //
+  // We call this from:
+  // - the UI Start button
+  // - the Return key
+  // - the first manual cube rotation
+  void startTimer();
+
+  // Stops the solve timer but keeps the elapsed time visible.
+  void stopTimer();
+
+  // Switches between start and stop.
+  void toggleTimer();
+
+  // Clears the timer back to 0.
+  void resetTimer();
+
+  // Returns the timer value that should be displayed.
+  double elapsedTimerSeconds() const;
+
   GLFWwindow *window_;
   // unsigned int means non negative integer
   // openGL gives many resources int ids. rhese ids are not the resource itself
@@ -285,6 +305,21 @@ private:
   // key guards so holding a keu does not trigger the action every frame
   bool scrambleWasPressed_{false};
   bool solveBackWasPressed_{false};
+
+  // Tracks whether Return was already down last frame.
+  //
+  // Return toggles the timer. This guard makes one key press create one
+  // start/stop action.
+  bool timerToggleWasPressed_{false};
+
+  // Timer state.
+  //
+  // timerRunning_ tells us whether time is actively counting right now.
+  // timerStartTime_ stores when the current running segment started.
+  // accumulatedTimerSeconds_ stores time from previous running segments.
+  bool timerRunning_{false};
+  double timerStartTime_{0.0};
+  double accumulatedTimerSeconds_{0.0};
 
   // Face-turn animation state.
   //
