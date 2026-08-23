@@ -165,6 +165,11 @@ private:
   // Animated reset moves calculate a duration from the history stack size.
   float currentTurnDurationSeconds_{0.5F};
 
+  // draws the imgui control panel
+  // this ui calls the same fucntions as the keyboard shortcuts
+  // that means buttons do not ceate sep behaviour
+  void renderUi();
+
   GLFWwindow *window_;
   // unsigned int means non negative integer
   // openGL gives many resources int ids. rhese ids are not the resource itself

@@ -26,15 +26,38 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/g-truc/glm.git
     GIT_TAG 1.0.1
 )
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.9
+)
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 # means do not build documenatation 
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(glfw glm)
+
+
+FetchContent_MakeAvailable(glfw glm imgui)
 
 find_package(OpenGL REQUIRED)
+
+add_library(imgui STATIC
+${imgui_SOURCE_DIR}/imgui.cpp
+${imgui_SOURCE_DIR}/imgui_draw.cpp
+${imgui_SOURCE_DIR}/imgui_tables.cpp
+${imgui_SOURCE_DIR}/imgui_widgets.cpp
+${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
+target_include_directories(imgui PUBLIC
+${imgui_SOURCE_DIR}
+${imgui_SOURCE_DIR}/backends
+)
+
+target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
 
 # creates executable target for RubikSim - a target is something cmake knows how to build - inside the brackets you list the source files that belong to that executable
 # a cpp fike must be part of the build if you want its function def linked to the final executable
@@ -49,6 +72,6 @@ add_executable(rubiksim #creates the program with that name
 target_include_directories(rubiksim PRIVATE src)
 
 target_compile_definitions(rubiksim PRIVATE GL_SILENCE_DEPRECATION)
-target_link_libraries(rubiksim PRIVATE glfw glm::glm OpenGL::GL)
+target_link_libraries(rubiksim PRIVATE glm::glm OpenGL::GL imgui)
 
 #this is why we can write include... insetad of a longer path

@@ -10,6 +10,9 @@
 // give this source file access rto glfw functions
 #define GLFW_INCLUDE_GLCOREARB
 #include <GLFW/glfw3.h>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 
 // basic glm vector and matrix types
 #include <glm/glm.hpp>
@@ -181,6 +184,19 @@ Application::Application() : window_(nullptr), shaderProgram_(0) {
 
   glEnable(GL_DEPTH_TEST); // Enables depth testing
   createCubeResources();
+
+  // set up dear imgui - draws pratcical tool ui oover our openGL scene
+  // we use it for buttons states controls and later timer controls
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+
+  ImGuiIO &io = ImGui::GetIO();
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+  ImGui::StyleColorsDark();
+
+  ImGui_ImplGlfw_InitForOpenGL(window_, true);
+  ImGui_ImplOpenGL3_Init("#version 330");
 }
 
 void Application::createCubeResources() {
@@ -314,6 +330,10 @@ void Application::resetCubeState() {
 }
 
 Application::~Application() {
+  ImGui_ImplOpenGL3_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
+
   destroyCubeResources();
 
   if (window_) {
@@ -658,8 +678,7 @@ void Application::solveBackFromMoveHistory() {
   //
   // A tiny minimum prevents huge histories from requesting near-zero duration
   // turns, which can look like flickering instead of animation.
-  float secondsPerMove =
-      maxSolveBackSeconds / static_cast<float>(moveCount);
+  float secondsPerMove = maxSolveBackSeconds / static_cast<float>(moveCount);
   if (secondsPerMove < 0.008F) {
     secondsPerMove = 0.008F;
   }
@@ -1181,10 +1200,56 @@ void Application::processMouseInput(const glm::mat4 &view,
   }
 }
 
+void Application::renderUi() {
+  // this creates ine small overlay window
+  // later we can split this into controls, timer and dataset toldl
+  ImGui::Begin("RubikSim Controls");
+
+  ImGui::Text("Controls");
+  ImGui::Separator();
+  ImGui::Text("Mouse drag cubie: rotate layer");
+  ImGui::Text("Mouse drag empty space: orbit camera");
+  ImGui::Text("W / S: zoom");
+  ImGui::Text("X: scramble");
+  ImGui::Text("V: animated reset");
+  ImGui::Text("Backspace / Enter: hard reset");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+
+  ImGui::Text("State");
+  ImGui::Text("Move history: %zu", moveHistory_.size());
+  ImGui::Text("Move queue: %zu", moveQueue_.size());
+  ImGui::Text("Turning: %s", isTurning_ ? "yes" : "no");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+
+  if (ImGui::Button("Scramble")) {
+    scrambleCube();
+  }
+
+  ImGui::SameLine();
+
+  if (ImGui::Button("Animated Reset")) {
+    solveBackFromMoveHistory();
+  }
+
+  if (ImGui::Button("Hard Reset")) {
+    resetCubeState();
+  }
+
+  ImGui::End();
+}
+
 int Application::run() {
   std::cout << "RubikSim starting...\n";
   while (!glfwWindowShouldClose(window_)) {
     glfwPollEvents();
+
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
 
     int displayW = 0, displayH = 0;
     glfwGetFramebufferSize(window_, &displayW, &displayH);
@@ -1247,7 +1312,11 @@ int Application::run() {
     const glm::mat4 projection =
         glm::perspective(glm::radians(45.0F), aspect, 0.1F, 100.0F);
 
-    processMouseInput(view, projection, displayW, displayH);
+    // if imgui wnats the mouse the use is clicking/draggin the
+    // uniform_int_distributionin that case do not also rortate the cube/camera
+    if (!ImGui::GetIO().WantCaptureMouse) {
+      processMouseInput(view, projection, displayW, displayH);
+    }
 
     // update which face is currwently under the mouse
     // we only show hoever when the user is not dragging and when a turen is not
@@ -1361,6 +1430,11 @@ int Application::run() {
 
       cubeMesh_->draw();
     }
+
+    renderUi();
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
     glfwSwapBuffers(window_);
   }
