@@ -1,3 +1,0 @@
-/Users/mderaznasr/Documents/GitHub/RubikSim/build-release/_deps/imgui-subbuild/CMakeFiles/imgui-populate.dir
-/Users/mderaznasr/Documents/GitHub/RubikSim/build-release/_deps/imgui-subbuild/CMakeFiles/edit_cache.dir
-/Users/mderaznasr/Documents/GitHub/RubikSim/build-release/_deps/imgui-subbuild/CMakeFiles/rebuild_cache.dir
