@@ -59,6 +59,11 @@ struct Move {
   float direction;
 };
 
+struct QueuedMove {
+  Move move;
+  bool recordInHistory{true};
+};
+
 struct MousePick {
   // hit is false when the mouse ray does not touch any cubie.
   bool hit{false};
@@ -118,7 +123,7 @@ private:
   //
   // This becomes the one official way to start a cube rotation.
   // Keyboard, mouse, scramble, and UI will all call this later.
-  void startTurn(const Move &move);
+  void startTurn(const Move &move, bool recordInHistory = true);
 
   // Permanently applies the finished 90 degree turn to cubie data.
   //
@@ -126,6 +131,29 @@ private:
   // This function changes the actual stored cubie.position values and sticker
   // colors so the cube remembers the move.
   void applyTurnToCubeState();
+
+  // adds one move to the waiting list
+  // if no turn is currently active, updateMoveQueue() will start it
+  void queueMove(const Move &move, bool recordInHistory = true);
+
+  // adds several moves to the waiting list
+  // scramble and solve back will use this
+  void queueMoves(const std::vector<Move> &moves);
+
+  // starts the next queued move if the cube is idle
+  void updateMoveQueue();
+
+  // Creates a random scramble and queues it
+  void scrambleCube();
+
+  // Queues the inverse of the scramble history
+  // This only solves back to the state before the scramble, not necessarily
+  // eveyr random user move after the scramble
+  void solveBackFromMoveHistory();
+
+  // returns the opposite of a move
+  // if a move rotates 90 degrees its inverse rotates -90 degrees
+  Move inverseMove(const Move &move) const;
 
   GLFWwindow *window_;
   // unsigned int means non negative integer
@@ -222,6 +250,27 @@ private:
   // stores all small cubes that make up the rubik's cubeMesh_
   std::vector<Cubie> cubies_;
 
+  // moves waiting to be animated
+  // cube can only animate one move at a time
+  // so we store upcoming mobves here and play them one by once
+  std::vector<QueuedMove> moveQueue_;
+
+  // Stack of moves that have actually finished.
+  //
+  // This records both:
+  // - mouse drag moves
+  // - scramble moves
+  //
+  // We use it as a stack:
+  // - push_back() records a finished move
+  // - back() reads the latest move
+  // - pop_back() removes the latest move
+  std::vector<Move> moveHistory_;
+
+  // key guards so holding a keu does not trigger the action every frame
+  bool scrambleWasPressed_{false};
+  bool solveBackWasPressed_{false};
+
   // Face-turn animation state.
   //
   // These variables describe a turn that is happening right now.
@@ -247,6 +296,20 @@ private:
   TurnAxis turningAxis_{TurnAxis::X};
   int turningLayer_{1};
   float turnDirection_{1.0F};
+
+  // The move currently being animated.
+  //
+  // We store the full Move so applyTurnToCubeState() can push it onto
+  // moveHistory_ when the animation successfully finishes.
+  Move currentMove_{TurnAxis::X, 1, 1.0F};
+
+  // Some moves should not be recorded.
+  //
+  // Example:
+  // solve-back plays inverse moves from history.
+  // If we recorded those inverse moves too, the stack would refill itself while
+  // solving back.
+  bool recordCurrentMoveInHistory_{true};
 
   // Current animation angle in radians.
   //

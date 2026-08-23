@@ -19,6 +19,7 @@
 // glm::value_ptr for sending matrices to openGL
 #include <cmath>
 #include <glm/gtc/type_ptr.hpp>
+#include <random>
 
 // anonymous namesce means these helper functions are only visible inside this
 // .cpp file
@@ -116,20 +117,20 @@ unsigned int createShaderProgram() {
       " }\n"
       " fragmentColor = vec4(shadedColor, 1.0);\n"
       "}\n";
-      /*
-       *   What this means:
+  /*
+   *   What this means:
 
-        distance(cubiePosition, highlightedCubiePosition) < 0.01
+    distance(cubiePosition, highlightedCubiePosition) < 0.01
 
-        checks that we are drawing the hovered cubie.
+    checks that we are drawing the hovered cubie.
 
-        dot(vertexNormal, highlightedFaceNormal) > 0.5
+    dot(vertexNormal, highlightedFaceNormal) > 0.5
 
-        checks that we are drawing the exact hovered face, not the whole
-        cubie.
-      */
-      const unsigned int vertexShader =
-          compileShader(GL_VERTEX_SHADER, vertexShaderSource);
+    checks that we are drawing the exact hovered face, not the whole
+    cubie.
+  */
+  const unsigned int vertexShader =
+      compileShader(GL_VERTEX_SHADER, vertexShaderSource);
   const unsigned int fragmentShader =
       compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
 
@@ -265,6 +266,10 @@ void Application::resetCubeState() {
   // We do not want to finish the current animation first.
   isTurning_ = false;
   turnAngle_ = 0.0F;
+  moveQueue_.clear();
+  moveHistory_.clear();
+  currentMove_ = Move{TurnAxis::X, 1, 1.0F};
+  recordCurrentMoveInHistory_ = true;
 
   // Also cancel mouse drag state.
   //
@@ -362,6 +367,21 @@ void Application::processInput(float deltaTime) {
   }
   resetWasPressed_ = resetIsPressed;
 
+  // X starts a scramble.
+  const bool scrambleIsPressed = glfwGetKey(window_, GLFW_KEY_X) == GLFW_PRESS;
+
+  if (scrambleIsPressed && !scrambleWasPressed_) {
+    scrambleCube();
+  }
+  scrambleWasPressed_ = scrambleIsPressed;
+
+  // V solves back by undoing every recorded move.
+  const bool solveBackIsPressed = glfwGetKey(window_, GLFW_KEY_V) == GLFW_PRESS;
+
+  if (solveBackIsPressed && !solveBackWasPressed_) {
+    solveBackFromMoveHistory();
+  }
+  solveBackWasPressed_ = solveBackIsPressed;
   // W and S still control zoom for now.
   // Later we can move zoom to the mouse wheel.
   const float zoomSpeed = 3.0F;
@@ -416,6 +436,9 @@ void Application::processInput(float deltaTime) {
       isTurning_ = false;
     }
   }
+  // if the cube is idle and moves are wating start the next queued move
+  // this is what makes scramble and solve back anumate move by move
+  updateMoveQueue();
 
   // clamp means keep a value inside a safe range
   // we stop pitch before it goes fully vertical because that can make
@@ -468,7 +491,7 @@ bool Application::isCubieInTurningLayer(const Cubie &cubie) const {
   return static_cast<int>(cubie.position.z) == turningLayer_;
 }
 
-void Application::startTurn(const Move &move) {
+void Application::startTurn(const Move &move, bool recordInHistory) {
   // Do not start a second turn while one is already animating.
   //
   // This guard matters because later scramble will try to run many moves.
@@ -484,10 +507,126 @@ void Application::startTurn(const Move &move) {
   turningAxis_ = move.axis;
   turningLayer_ = move.layer;
   turnDirection_ = move.direction;
+  currentMove_ = move;
+  recordCurrentMoveInHistory_ = recordInHistory;
 
   // Start the visual animation from 0 degrees.
   isTurning_ = true;
   turnAngle_ = 0.0F;
+}
+
+void Application::queueMove(const Move &move, bool recordInHistory) {
+  // add one move to the back of the waiting list
+  moveQueue_.push_back(QueuedMove{move, recordInHistory});
+}
+
+void Application::queueMoves(const std::vector<Move> &moves) {
+  // add each move in order
+  // we dont start them all at once
+  // updateMoveQueue() will play them one at a time
+  for (const Move &move : moves) {
+    queueMove(move);
+  }
+}
+
+void Application::updateMoveQueue() {
+  // if a move is already animating then wait
+  if (isTurning_) {
+    return;
+  }
+  // if no moves are waiting, there is nothing to do
+  if (moveQueue_.empty()) {
+    return;
+  }
+
+  // copy the next move, then remove it from the queue
+  // erase(begin) rmeoves the fist item
+  // for a tiny rubik scramble queue this is fine
+  // later, std::deque would be better for large queues
+  const QueuedMove nextMove = moveQueue_.front();
+  moveQueue_.erase(moveQueue_.begin());
+
+  startTurn(nextMove.move, nextMove.recordInHistory);
+}
+
+Move Application::inverseMove(const Move &move) const {
+  // same axis, same layer, oppposite direction
+  return Move{
+      move.axis,
+      move.layer,
+      -move.direction,
+  };
+}
+
+void Application::scrambleCube() {
+  // dont start a new scramble while a turn or queue is already active
+  // this keeps state predictable while we are learning
+  if (isTurning_ || !moveQueue_.empty()) {
+    return;
+  }
+
+  // random number tools
+  // rabdom_device is the actual random generator
+  static std::random_device randomDevice;
+  static std::mt19937 generator(randomDevice());
+
+  // Axis choices:
+  //  0 -> x
+  //  1 -> y
+  //  2 -> z
+  std::uniform_int_distribution<int> axisDistribution(0, 2);
+  std::uniform_int_distribution<int> layerDistribution(0, 1);
+
+  // direction choices
+  // 0 -> -1
+  // 0 -> +1
+  std::uniform_int_distribution<int> directionDistribution(0, 1);
+
+  const int scrambleLength = 20;
+
+  for (int i = 0; i < scrambleLength; ++i) {
+    const int axisValue = axisDistribution(generator);
+    const int layerValue = layerDistribution(generator);
+    const int directionValue = directionDistribution(generator);
+
+    TurnAxis axis = TurnAxis::X;
+    if (axisValue == 1) {
+      axis = TurnAxis::Y;
+    } else if (axisValue == 2) {
+      axis = TurnAxis::Z;
+    }
+
+    const int layer = layerValue == 0 ? -1 : 1;
+    const float direction = directionValue == 0 ? -1.0F : 1.0F;
+
+    const Move move{axis, layer, direction};
+
+    queueMove(move);
+  }
+}
+
+void Application::solveBackFromMoveHistory() {
+  // do not solve back wgile another sequence is still running
+  if (isTurning_ || !moveQueue_.empty()) {
+    return;
+  }
+
+  // Use moveHistory_ like a stack.
+  //
+  // The latest move must be undone first.
+  // Example:
+  // history: A, B, C
+  // solve-back queue: inverse(C), inverse(B), inverse(A)
+  while (!moveHistory_.empty()) {
+    const Move latestMove = moveHistory_.back();
+    moveHistory_.pop_back();
+
+    // These inverse moves are intentionally not recorded.
+    //
+    // Otherwise solve-back would refill the history with inverse moves while it
+    // is trying to empty the history.
+    queueMove(inverseMove(latestMove), false);
+  }
 }
 
 void Application::applyTurnToCubeState() {
@@ -611,6 +750,20 @@ void Application::applyTurnToCubeState() {
       cubie.backColor = oldBack;
     }
   }
+
+  // Record the move after it has successfully changed the cube state.
+  //
+  // This makes moveHistory_ a true stack of completed moves.
+  //
+  // Normal moves record here:
+  // - mouse drag turns
+  // - scramble turns
+  //
+  // Solve-back inverse moves do not record here, because startTurn() marks
+  // them with recordCurrentMoveInHistory_ = false.
+  if (recordCurrentMoveInHistory_) {
+    moveHistory_.push_back(currentMove_);
+  }
 }
 
 MousePick Application::pickCubie(double mouseX, double mouseY,
@@ -646,27 +799,23 @@ MousePick Application::pickCubie(double mouseX, double mouseY,
     return bestPick;
   }
 
-  const float framebufferMouseX =
-      static_cast<float>(mouseX) * static_cast<float>(displayW) /
-      static_cast<float>(windowW);
-  const float framebufferMouseY =
-      static_cast<float>(mouseY) * static_cast<float>(displayH) /
-      static_cast<float>(windowH);
+  const float framebufferMouseX = static_cast<float>(mouseX) *
+                                  static_cast<float>(displayW) /
+                                  static_cast<float>(windowW);
+  const float framebufferMouseY = static_cast<float>(mouseY) *
+                                  static_cast<float>(displayH) /
+                                  static_cast<float>(windowH);
 
   const glm::vec4 viewport(0.0F, 0.0F, static_cast<float>(displayW),
                            static_cast<float>(displayH));
-  const glm::vec3 nearPoint =
-      glm::unProject(glm::vec3(framebufferMouseX,
-                               static_cast<float>(displayH) -
-                                   framebufferMouseY,
-                               0.0F),
-                     view, projection, viewport);
-  const glm::vec3 farPoint =
-      glm::unProject(glm::vec3(framebufferMouseX,
-                               static_cast<float>(displayH) -
-                                   framebufferMouseY,
-                               1.0F),
-                     view, projection, viewport);
+  const glm::vec3 nearPoint = glm::unProject(
+      glm::vec3(framebufferMouseX,
+                static_cast<float>(displayH) - framebufferMouseY, 0.0F),
+      view, projection, viewport);
+  const glm::vec3 farPoint = glm::unProject(
+      glm::vec3(framebufferMouseX,
+                static_cast<float>(displayH) - framebufferMouseY, 1.0F),
+      view, projection, viewport);
 
   const glm::vec3 rayOrigin = nearPoint;
   const glm::vec3 rayDirection = glm::normalize(farPoint - nearPoint);
