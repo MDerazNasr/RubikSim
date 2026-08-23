@@ -37,6 +37,33 @@ enum class SelectedFace { Right, Left, Top, Bottom, Front, Back };
 // Z axis turns front/back layers.
 enum class TurnAxis { X, Y, Z };
 
+// A Move describes one 90-degree layer turn.
+//
+// It does not care whether the move came from:
+// - keyboard input
+// - mouse drag
+// - scramble generator
+// - UI button
+//
+// Everything becomes the same simple instruction:
+// rotate this axis, on this layer, in this direction.
+struct Move {
+  // Which world axis the layer rotates around.
+  TurnAxis axis;
+
+  // Which layer on that axis moves.
+  //
+  // For a 3x3 cube:
+  // -1 means negative side
+  //  0 means middle layer
+  //  1 means positive side
+  int layer;
+
+  // +1 means rotate in the positive axis direction.
+  // -1 means rotate in the negative axis direction.
+  float direction;
+};
+
 struct MousePick {
   // hit is false when the mouse ray does not touch any cubie.
   bool hit{false};
@@ -91,6 +118,19 @@ private:
   // running animation should keep using the face that started the turn.
   bool isCubieInFace(const Cubie &cubie, SelectedFace face) const;
   bool isCubieInTurningLayer(const Cubie &cubie) const;
+
+  // Starts a turn animation from a Move.
+  //
+  // This becomes the one official way to start a cube rotation.
+  // Keyboard, mouse, scramble, and UI will all call this later.
+  void startTurn(const Move &move);
+
+  // Converts the currently selected keyboard face into a Move.
+  //
+  // Example:
+  // SelectedFace::Right becomes:
+  // axis X, layer 1, direction +1
+  Move moveForSelectedFace(SelectedFace face) const;
 
   // Permanently applies the finished 90 degree turn to cubie data.
   //

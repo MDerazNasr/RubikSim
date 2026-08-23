@@ -365,45 +365,17 @@ void Application::processInput(float deltaTime) {
   //
   // This means one key press creates one clean animation.
   const bool spaceIsPressed = glfwGetKey(window_, GLFW_KEY_SPACE) == GLFW_PRESS;
-  if (spaceIsPressed && !spaceWasPressed_ && !isTurning_) {
-    // The animation is now active.
-    isTurning_ = true;
-
+  if (spaceIsPressed && !spaceWasPressed_) {
     // Freeze which face is turning.
     //
     // selectedFace_ can still change later if the user presses R/L/U/D/F/B,
     // but turningFace_ keeps this animation tied to the original face.
     turningFace_ = selectedFace_;
 
-    if (selectedFace_ == SelectedFace::Right) {
-      turningAxis_ = TurnAxis::X;
-      turningLayer_ = 1;
-      turnDirection_ = 1.0F;
-    } else if (selectedFace_ == SelectedFace::Left) {
-      turningAxis_ = TurnAxis::X;
-      turningLayer_ = -1;
-      turnDirection_ = -1.0F;
-    } else if (selectedFace_ == SelectedFace::Top) {
-      turningAxis_ = TurnAxis::Y;
-      turningLayer_ = 1;
-      turnDirection_ = 1.0F;
-    } else if (selectedFace_ == SelectedFace::Bottom) {
-      turningAxis_ = TurnAxis::Y;
-      turningLayer_ = -1;
-      turnDirection_ = -1.0F;
-    } else if (selectedFace_ == SelectedFace::Front) {
-      turningAxis_ = TurnAxis::Z;
-      turningLayer_ = 1;
-      turnDirection_ = 1.0F;
-    } else {
-      turningAxis_ = TurnAxis::Z;
-      turningLayer_ = -1;
-      turnDirection_ = -1.0F;
-    }
-
-    // Start from 0 radians.
-    // The animation update below will increase this over time.
-    turnAngle_ = 0.0F;
+    // Convert the selected face into a generic Move, then start it.
+    //
+    // startTurn() will ignore the request if a turn is already active.
+    startTurn(moveForSelectedFace(selectedFace_));
   }
   spaceWasPressed_ = spaceIsPressed;
 
@@ -548,6 +520,60 @@ bool Application::isCubieInTurningLayer(const Cubie &cubie) const {
   }
 
   return static_cast<int>(cubie.position.z) == turningLayer_;
+}
+
+Move Application::moveForSelectedFace(SelectedFace face) const {
+  // This function translates the old keyboard face selection system into the
+  // new generic Move system.
+  //
+  // The keyboard still thinks in faces:
+  // R, L, U, D, F, B
+  //
+  // The animation system thinks in axes/layers:
+  // axis X/Y/Z, layer -1/0/1, direction +1/-1
+  if (face == SelectedFace::Right) {
+    return Move{TurnAxis::X, 1, 1.0F};
+  }
+
+  if (face == SelectedFace::Left) {
+    return Move{TurnAxis::X, -1, -1.0F};
+  }
+
+  if (face == SelectedFace::Top) {
+    return Move{TurnAxis::Y, 1, 1.0F};
+  }
+
+  if (face == SelectedFace::Bottom) {
+    return Move{TurnAxis::Y, -1, -1.0F};
+  }
+
+  if (face == SelectedFace::Front) {
+    return Move{TurnAxis::Z, 1, 1.0F};
+  }
+
+  return Move{TurnAxis::Z, -1, -1.0F};
+}
+
+void Application::startTurn(const Move &move) {
+  // Do not start a second turn while one is already animating.
+  //
+  // This guard matters because later scramble will try to run many moves.
+  // For now, we only allow one active move at a time.
+  if (isTurning_) {
+    return;
+  }
+
+  // Copy the move data into the animation state.
+  //
+  // The draw loop and applyTurnToCubeState() already know how to use these
+  // three values.
+  turningAxis_ = move.axis;
+  turningLayer_ = move.layer;
+  turnDirection_ = move.direction;
+
+  // Start the visual animation from 0 degrees.
+  isTurning_ = true;
+  turnAngle_ = 0.0F;
 }
 
 void Application::applyTurnToCubeState() {
@@ -948,26 +974,84 @@ void Application::processMouseInput(const glm::mat4 &view,
             static_cast<float>(dy <= 0.0 ? 1.0 : -1.0) * cameraUp_;
       }
 
-      // Choose the world axis that best matches the drag direction.
+      // The mouse drag tells us which way the clicked face should visibly
+      // move.
+      //
+      // But a Rubik's cube layer does not rotate around the drag direction.
+      // It rotates around an axis that is perpendicular to:
+      // 1. the clicked face normal
+      // 2. the desired drag direction on that face
       //
       // Example:
-      // If cameraRight_ currently points mostly along X,
-      // horizontal drag turns an X-related layer.
+      // If the user drags right on the front face, the front face should move
+      // right. The turn axis must be vertical, not horizontal.
       //
-      // If cameraUp_ currently points mostly along Y,
-      // vertical drag turns a Y-related layer.
-      turningAxis_ = strongAxisFromVector(worldDragDirection);
+      // This is the key relationship:
+      // turn axis = clicked face normal x drag direction
+      const glm::vec3 faceNormal = activePick_.faceNormal;
 
-      // Turn the layer that contains the clicked cubie.
-      turningLayer_ = layerForAxis(activePick_.cubiePosition, turningAxis_);
+      // Project the drag onto the clicked face.
+      //
+      // cameraRight_ and cameraUp_ are screen directions in world space.
+      // Depending on camera angle, part of that direction may point into or out
+      // of the clicked face.
+      //
+      // A sticker can only slide along its own face, so we remove the part of
+      // the drag that points through the face normal.
+      glm::vec3 faceDragDirection =
+          worldDragDirection -
+          faceNormal * glm::dot(worldDragDirection, faceNormal);
 
-      // Choose +1 or -1 based on whether the drag points along the positive
-      // or negative side of that axis.
-      turnDirection_ = directionSignForAxis(worldDragDirection, turningAxis_);
+      // If the camera is looking almost straight at an edge case, the projected
+      // drag can become too small to trust. In that rare case, cancel this
+      // drag instead of starting a wrong turn.
+      if (glm::length(faceDragDirection) < 0.001F) {
+        hasStartedMouseTurn_ = true;
+        return;
+      }
 
-      // Start the animation.
-      isTurning_ = true;
-      turnAngle_ = 0.0F;
+      faceDragDirection = glm::normalize(faceDragDirection);
+
+      // Snap the face drag to one clean world axis.
+      //
+      // We do this because Rubik's cube turns are axis-aligned.
+      // The mouse drag may be a little diagonal, but the final turn should be a
+      // clean row/column movement.
+      const TurnAxis dragAxis = strongAxisFromVector(faceDragDirection);
+      glm::vec3 snappedDragDirection(0.0F);
+
+      if (dragAxis == TurnAxis::X) {
+        snappedDragDirection.x = faceDragDirection.x >= 0.0F ? 1.0F : -1.0F;
+      } else if (dragAxis == TurnAxis::Y) {
+        snappedDragDirection.y = faceDragDirection.y >= 0.0F ? 1.0F : -1.0F;
+      } else {
+        snappedDragDirection.z = faceDragDirection.z >= 0.0F ? 1.0F : -1.0F;
+      }
+
+      // This is the actual rotation axis.
+      //
+      // If this line feels confusing, remember:
+      // - snappedDragDirection is where the clicked sticker should move
+      // - faceNormal is which side of the cubie was clicked
+      // - cross(faceNormal, snappedDragDirection) gives the spin axis that
+      //   makes that face move in that drag direction
+      const glm::vec3 turnAxisDirection =
+          glm::normalize(glm::cross(faceNormal, snappedDragDirection));
+
+      const TurnAxis turnAxis = strongAxisFromVector(turnAxisDirection);
+
+      // Build a generic Move from the mouse drag.
+      //
+      // This is the same kind of Move the keyboard now creates.
+      // The source is different, but the animation system receives the same
+      // clean instruction.
+      const Move dragMove{
+          turnAxis,
+          layerForAxis(activePick_.cubiePosition, turnAxis),
+          directionSignForAxis(turnAxisDirection, turnAxis),
+      };
+
+      startTurn(dragMove);
 
       // Prevent this same drag from starting multiple turns.
       hasStartedMouseTurn_ = true;
