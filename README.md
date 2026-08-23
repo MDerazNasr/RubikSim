@@ -4,7 +4,7 @@ RubikSim is an interactive 3D Rubik's Cube built with C++ and OpenGL. It support
 
 ## Demo
 
-[Watch the demo](demo/rubik_demo.mov)
+https://github.com/user-attachments/assets/b861489a-d65f-4bef-9594-aad724ca3fe4
 
 ## Features
 
